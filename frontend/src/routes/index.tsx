@@ -1,0 +1,46 @@
+import { createBrowserRouter } from 'react-router-dom';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import HomePage from '@/pages/HomePage';
+import TrainingPage from '@/pages/TrainingPage';
+import CyclesPage from '@/pages/CyclesPage';
+import GymPage from '@/pages/GymPage';
+import CompetitionPage from '@/pages/CompetitionPage';
+import AnalyticsPage from '@/pages/AnalyticsPage';
+import AthletesPage from '@/pages/AthletesPage';
+
+export const router = createBrowserRouter([
+    {
+        path: '/',
+        element: <DashboardLayout />,
+        children: [
+            {
+                index: true,
+                element: <HomePage />,
+            },
+            {
+                path: 'training',
+                element: <TrainingPage />,
+            },
+            {
+                path: 'cycles',
+                element: <CyclesPage />,
+            },
+            {
+                path: 'gym',
+                element: <GymPage />,
+            },
+            {
+                path: 'competitions',
+                element: <CompetitionPage />,
+            },
+            {
+                path: 'analytics',
+                element: <AnalyticsPage />,
+            },
+            {
+                path: 'athletes',
+                element: <AthletesPage />,
+            },
+        ],
+    },
+]);
