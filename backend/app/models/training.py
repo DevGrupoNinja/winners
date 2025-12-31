@@ -20,12 +20,21 @@ class ConfigIntensityInterval(Base):
     min_value = Column(Float) # Comparison against DA-RE/DA-ER
     max_value = Column(Float)
 
+class ConfigFunctionalDirectionRange(Base):
+    id = Column(Integer, primary_key=True, index=True)
+    re_min = Column(Float)
+    re_max = Column(Float)
+    er_min = Column(Float)
+    er_max = Column(Float)
+    direction = Column(String) # e.g. "VO2", "Aeróbico"
+
 # --- Training Structure ---
 
 class TrainingSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     date = Column(Date, nullable=False)
     time = Column(Time, nullable=True)
+    profile = Column(String, nullable=True) # Fundo, Velocidade, Meio Fundo, Técnica
     category = Column(String) # Could be FK to ConfigCategory, but keeping string for flexibility if config deleted
     micro_cycle_id = Column(Integer, ForeignKey("microcycle.id"), nullable=True) # Optional link to periodization
     status = Column(String, default="Planned") # Planned, Completed
@@ -33,6 +42,10 @@ class TrainingSession(Base):
     
     # Aggregated metrics
     total_volume = Column(Float, default=0.0)
+
+    # Self-referential FK for Cloning (Plan -> Session)
+    parent_session_id = Column(Integer, ForeignKey("trainingsession.id"), nullable=True)
+    parent_session = relationship("TrainingSession", remote_side=[id], backref="copies")
 
     series = relationship("TrainingSeries", back_populates="session", cascade="all, delete-orphan")
 

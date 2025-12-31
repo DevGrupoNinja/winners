@@ -1,6 +1,21 @@
-from typing import List, Optional
+import datetime
 from pydantic import BaseModel
-from datetime import date, time
+
+# --- Configuration ---
+class ConfigFunctionalDirectionRangeBase(BaseModel):
+    re_min: float
+    re_max: float
+    er_min: float
+    er_max: float
+    direction: str
+
+class ConfigFunctionalDirectionRangeCreate(ConfigFunctionalDirectionRangeBase):
+    pass
+
+class ConfigFunctionalDirectionRange(ConfigFunctionalDirectionRangeBase):
+    id: int
+    class Config:
+        from_attributes = True
 
 # --- Subdivisions ---
 class TrainingSubdivisionBase(BaseModel):
@@ -9,11 +24,11 @@ class TrainingSubdivisionBase(BaseModel):
     reps: int
     distance: float
     style: str
-    interval_time: Optional[str] = None
-    pause_time: Optional[str] = None
-    da_re: Optional[float] = None
-    da_er: Optional[float] = None
-    observation: Optional[str] = None
+    interval_time: str | None = None
+    pause_time: str | None = None
+    da_re: float | None = None
+    da_er: float | None = None
+    observation: str | None = None
 
 class TrainingSubdivisionCreate(TrainingSubdivisionBase):
     pass
@@ -29,39 +44,47 @@ class TrainingSeriesBase(BaseModel):
     order: int
     name: str
     reps: str
-    rpe_target: Optional[float] = None
-    instructions: Optional[str] = None
+    rpe_target: float | None = None
+    instructions: str | None = None
     total_distance: float = 0.0
 
 class TrainingSeriesCreate(TrainingSeriesBase):
-    subdivisions: List[TrainingSubdivisionCreate] = []
+    subdivisions: list["TrainingSubdivisionCreate"] = []
 
 class TrainingSeries(TrainingSeriesBase):
     id: int
     session_id: int
-    subdivisions: List[TrainingSubdivision] = []
+    subdivisions: list["TrainingSubdivision"] = []
     class Config:
         from_attributes = True
 
 # --- Session (Workout) ---
 class TrainingSessionBase(BaseModel):
-    date: date
-    time: Optional[time] = None
-    category: Optional[str] = None
-    micro_cycle_id: Optional[int] = None
-    status: Optional[str] = "Planned"
-    description: Optional[str] = None
-    total_volume: Optional[float] = 0.0
+    date: datetime.date
+    time: datetime.time | None = None
+    profile: str | None = None
+    category: str | None = None
+    micro_cycle_id: int | None = None
+    status: str | None = "Planned"
+    description: str | None = None
+    total_volume: float | None = 0.0
 
 class TrainingSessionCreate(TrainingSessionBase):
-    series: List[TrainingSeriesCreate] = []
+    series: list["TrainingSeriesCreate"] = []
 
-class TrainingSessionUpdate(TrainingSessionBase):
-    pass
+class TrainingSessionUpdate(BaseModel):
+    date: datetime.date | None = None
+    time: datetime.time | None = None
+    profile: str | None = None
+    category: str | None = None
+    micro_cycle_id: int | None = None
+    status: str | None = None
+    description: str | None = None
+    total_volume: float | None = None
 
 class TrainingSession(TrainingSessionBase):
     id: int
-    series: List[TrainingSeries] = []
+    series: list["TrainingSeries"] = []
     class Config:
         from_attributes = True
 
@@ -69,9 +92,9 @@ class TrainingSession(TrainingSessionBase):
 class SessionFeedbackCreate(BaseModel):
     session_id: int
     athlete_id: int
-    rpe_real: Optional[float] = None
-    exhaustion_level: Optional[str] = None
-    notes: Optional[str] = None
+    rpe_real: float | None = None
+    exhaustion_level: str | None = None
+    notes: str | None = None
     attendance: str
 
 class SessionFeedback(SessionFeedbackCreate):

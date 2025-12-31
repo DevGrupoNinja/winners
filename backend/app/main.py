@@ -5,8 +5,8 @@ from app.api.api_v1.api import api_router
 from app.db.base import Base
 from app.db.session import engine
 
-# Create tables on startup (Dev only - use Alembic for Prod)
-Base.metadata.create_all(bind=engine)
+# Create tables on startup (Use Alembic for Migrations)
+# Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

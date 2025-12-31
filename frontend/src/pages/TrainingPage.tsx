@@ -52,6 +52,41 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
     const [subPausa, setSubPausa] = useState('');
     const [subDare, setSubDare] = useState('');
     const [subDaer, setSubDaer] = useState('');
+    const [subFunctionalBase, setSubFunctionalBase] = useState('Automático');
+    const [ranges, setRanges] = useState<any[]>([]);
+
+    React.useEffect(() => {
+        const fetchRanges = async () => {
+            try {
+                const data = await trainingService.getFunctionalDirectionRanges();
+                setRanges(data);
+            } catch (err) {
+                console.error("Failed to fetch ranges", err);
+            }
+        };
+        fetchRanges();
+    }, []);
+
+    React.useEffect(() => {
+        if (!subDare || !subDaer || ranges.length === 0) {
+            setSubFunctionalBase('Automático');
+            return;
+        }
+
+        const re = parseFloat(subDare);
+        const er = parseFloat(subDaer);
+
+        const match = ranges.find(r =>
+            re >= r.re_min && re <= r.re_max &&
+            er >= r.er_min && er <= r.er_max
+        );
+
+        if (match) {
+            setSubFunctionalBase(match.direction);
+        } else {
+            setSubFunctionalBase('Fora da faixa');
+        }
+    }, [subDare, subDaer, ranges]);
 
     const handleAddSub = () => {
         if (!subReps || !subMetros) return;
@@ -67,10 +102,11 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
             totalDistance: parseInt(subReps) * parseInt(subMetros),
             daRe: subDare,
             daEr: subDaer,
-            functionalBase: 'Automático'
+            functionalBase: subFunctionalBase
         };
         setSubdivisions([...subdivisions, newSub]);
         setSubReps(''); setSubMetros(''); setSubObs(''); setSubExerc(''); setSubTempo(''); setSubPausa(''); setSubDare(''); setSubDaer('');
+        setSubFunctionalBase('Automático');
     };
 
     const handleRemoveSub = (id: string) => setSubdivisions(subdivisions.filter(s => s.id !== id));
@@ -151,16 +187,16 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
                             <div className="col-span-1"><label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Pausa</label><input type="text" value={subPausa} onChange={e => setSubPausa(e.target.value)} placeholder="Seg" className="w-full p-2 bg-white border border-gray-300 rounded-lg text-xs h-11 text-center" /></div>
                             <div className="col-span-1"><label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">DA-RE</label><input type="text" value={subDare} onChange={e => setSubDare(e.target.value)} placeholder="0.0" className="w-full p-2 bg-white border border-gray-300 rounded-lg text-xs h-11 text-center font-bold text-brand-orange" /></div>
                             <div className="col-span-1"><label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">DA-ER</label><input type="text" value={subDaer} onChange={e => setSubDaer(e.target.value)} placeholder="0.0" className="w-full p-2 bg-white border border-gray-300 rounded-lg text-xs h-11 text-center font-bold" /></div>
-                            <div className="lg:col-span-2"><label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Base funcional</label><input type="text" readOnly value="Automático" className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-[9px] h-11 text-gray-500 italic" /></div>
+                            <div className="lg:col-span-2"><label className="text-[10px] font-bold text-gray-400 block mb-1 uppercase">Base funcional</label><input type="text" readOnly value={subFunctionalBase} className={`w-full p-2 border rounded-lg text-[10px] h-11 transition-colors font-bold ${subFunctionalBase === 'Automático' ? 'bg-gray-50 border-gray-200 text-gray-400 italic' : 'bg-brand-orange/10 border-brand-orange text-brand-orange'}`} /></div>
                         </div>
                         <div className="flex justify-end"><button onClick={handleAddSub} className="bg-slate-700 text-white px-8 py-3 rounded-xl font-black text-xs uppercase tracking-widest shadow-md hover:bg-slate-800">Salvar subdivisão</button></div>
                         <div className="overflow-x-auto rounded-2xl border border-gray-200 mt-4 shadow-sm">
                             <table className="w-full text-left text-xs">
-                                <thead className="bg-brand-slate text-white font-bold uppercase tracking-widest text-[9px]"><tr><th className="px-4 py-4 text-center">TIPO</th><th className="px-4 py-4 text-center">Série</th><th className="px-4 py-4 text-center">x</th><th className="px-4 py-4 text-center">Mts</th><th className="px-4 py-4">Observações</th><th className="px-4 py-4 text-center">TEMPO</th><th className="px-4 py-4 text-center">PAUSA</th><th className="px-4 py-4 text-center">TOTAL</th><th className="px-4 py-4 text-center">DA-RE</th><th className="px-4 py-4 text-center">DA-ER</th><th className="px-4 py-4 text-center">AÇÃO</th></tr></thead>
+                                <thead className="bg-brand-slate text-white font-bold uppercase tracking-widest text-[9px]"><tr><th className="px-4 py-4 text-center">TIPO</th><th className="px-4 py-4 text-center">Série</th><th className="px-4 py-4 text-center">x</th><th className="px-4 py-4 text-center">Mts</th><th className="px-4 py-4">Observações</th><th className="px-4 py-4 text-center">TEMPO</th><th className="px-4 py-4 text-center">PAUSA</th><th className="px-4 py-4 text-center">TOTAL</th><th className="px-4 py-4 text-center">DA-RE</th><th className="px-4 py-4 text-center">DA-ER</th><th className="px-4 py-4 text-center">BASE</th><th className="px-4 py-4 text-center">AÇÃO</th></tr></thead>
                                 <tbody className="divide-y divide-gray-100 font-bold">
                                     {subdivisions.map(sub => (
                                         <tr key={sub.id} className={`${sub.type === 'DDR' ? 'bg-[#FFFACD]' : 'bg-[#E0F2FF]'} hover:opacity-90`}>
-                                            <td className="px-4 py-3 text-center">{sub.type}</td><td className="px-4 py-3 text-center">{sub.seriesOrder}</td><td className="px-4 py-3 text-center text-gray-400">x</td><td className="px-4 py-3 text-center">{sub.distance / sub.seriesOrder}</td><td className="px-4 py-3">{sub.description || '-'}</td><td className="px-4 py-3 text-center">{sub.interval || '-'}</td><td className="px-4 py-3 text-center">{sub.pause || '-'}</td><td className="px-4 py-3 text-center">{sub.totalDistance}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.daRe}</td><td className="px-4 py-3 text-center">{sub.daEr}</td><td className="px-4 py-3 text-center"><button onClick={() => handleRemoveSub(sub.id)} className="p-1 text-gray-500 hover:text-red-500"><Trash2 size={14} /></button></td>
+                                            <td className="px-4 py-3 text-center">{sub.type}</td><td className="px-4 py-3 text-center">{sub.seriesOrder}</td><td className="px-4 py-3 text-center text-gray-400">x</td><td className="px-4 py-3 text-center">{sub.distance / sub.seriesOrder}</td><td className="px-4 py-3">{sub.description || '-'}</td><td className="px-4 py-3 text-center">{sub.interval || '-'}</td><td className="px-4 py-3 text-center">{sub.pause || '-'}</td><td className="px-4 py-3 text-center">{sub.totalDistance}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.daRe}</td><td className="px-4 py-3 text-center">{sub.daEr}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.functionalBase}</td><td className="px-4 py-3 text-center"><button onClick={() => handleRemoveSub(sub.id)} className="p-1 text-gray-500 hover:text-red-500"><Trash2 size={14} /></button></td>
                                         </tr>
                                     ))}
                                     {subdivisions.length === 0 && <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-400 italic">Nenhuma subdivisão.</td></tr>}
@@ -291,7 +327,6 @@ export default function TrainingPage() {
                 const newWorkout = await trainingService.create({
                     title: builderTitle || 'Novo treino',
                     date: builderDate,
-                    time: '08:00', // Default, maybe add input
                     profile: builderProfile,
                     category: builderCategory,
                     blocks: builderBlocks
@@ -307,21 +342,35 @@ export default function TrainingPage() {
 
     const handleStartRequest = (workout: Workout) => {
         setStartWorkoutRef(workout);
-        setSessionStartTime(workout.time);
+        const currentTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        setSessionStartTime(currentTime);
         setShowStartModal(true);
     };
 
-    const confirmStartSession = () => {
+    const confirmStartSession = async () => {
         if (startWorkoutRef) {
-            setLiveWorkout({ ...startWorkoutRef, time: sessionStartTime });
-            const initialAtt: Record<string, boolean> = {};
-            athletes.forEach(a => initialAtt[a.id] = true);
-            setAttendance(initialAtt);
-            setSessionEvaluations({});
-            setIsSidebarCollapsed(false);
-            setShowStartModal(false);
-            setStartWorkoutRef(null);
-            setViewMode('LIVE');
+            try {
+                // 1. Clone the plan into a new session
+                const newSession = await trainingService.startSession(startWorkoutRef.id);
+
+                // 2. Update the new session with the chosen time
+                // The backend clone status is already 'Active'
+                const updatedSession = await trainingService.update(newSession.id, {
+                    time: sessionStartTime
+                });
+
+                // 3. Set as live workout
+                setLiveWorkout(updatedSession);
+
+                setSessionEvaluations({});
+                setIsSidebarCollapsed(false);
+                setShowStartModal(false);
+                setStartWorkoutRef(null);
+                setViewMode('LIVE');
+            } catch (err) {
+                console.error("Error starting session:", err);
+                alert("Erro ao iniciar sessão.");
+            }
         }
     };
 
@@ -382,7 +431,7 @@ export default function TrainingPage() {
 
     const renderListView = () => {
         const filteredWorkouts = workouts.filter(w => {
-            if (w.status === 'Completed') return false; // Hide completed from Plans tab
+            if (w.status !== 'Planned') return false; // Show only Plans
             const matchesCategory = filterCategory === 'Todos' || w.category === filterCategory;
             const matchesProfile = filterProfile === 'Todos' || w.profile === filterProfile;
             const matchesStart = !startDate || w.date >= startDate;

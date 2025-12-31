@@ -8,7 +8,8 @@ from .cycles import (
 )
 from .training import (
     TrainingSession, TrainingSessionCreate, TrainingSessionUpdate,
-    TrainingSeries, TrainingSubdivision, SessionFeedback, SessionFeedbackCreate
+    TrainingSeries, TrainingSubdivision, SessionFeedback, SessionFeedbackCreate,
+    ConfigFunctionalDirectionRange, ConfigFunctionalDirectionRangeCreate
 )
 from .gym import (
     GymTemplate, GymTemplateCreate, GymExercise, GymExerciseCreate,
