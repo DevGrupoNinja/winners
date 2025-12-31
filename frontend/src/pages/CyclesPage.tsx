@@ -1,7 +1,8 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Plus, Calendar, Activity, Zap, TrendingUp, Award, Droplets, Dumbbell, Heart, Trophy, Edit2, Trash2, X, AlertTriangle, Clock, Scale, Thermometer, UserCheck, BarChart3, Users, Layout, Target, Info, Timer, Weight, ChevronLeft } from 'lucide-react';
-import { MOCK_MACRO, MOCK_ATHLETES } from '@/constants';
+import { DatePicker, DateRange } from '@/components/ui/DatePicker';
+import { cyclesService } from '@/services/cyclesService';
+import { MOCK_ATHLETES } from '@/constants';
 import { MacroCycle, MicroCycle, MesoCycle } from '@/types';
 
 // Função auxiliar para formatar datas incluindo o ano (DD/MM/YYYY)
@@ -44,7 +45,7 @@ const CardHeader = ({ icon: Icon, title, subtitle }: { icon: any, title: string,
     </div>
 );
 
-const ProgressBar = ({ label, value, max, colorClass = "bg-brand-orange", subValue }: { label: string, value: number, max: number, colorClass?: string, subValue?: string }) => {
+const ProgressBar = ({ label, value, max, colorClass = "bg-brand-orange", subValue }: { key?: any, label: string, value: number, max: number, colorClass?: string, subValue?: string }) => {
     const percentage = Math.min((value / max) * 100, 100);
     return (
         <div className="w-full">
@@ -484,7 +485,7 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                     </div>
                 </div>
                 <div className="hidden lg:block">
-                    <span className="text-7xl font-black text-slate-100 select-none tracking-tighter">#{macro.id.replace(/\D/g, '') || '01'}</span>
+                    <span className="text-7xl font-black text-slate-100 select-none tracking-tighter">#{String(macro.id).replace(/\D/g, '').padStart(2, '0')}</span>
                 </div>
             </div>
 
@@ -630,7 +631,7 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
 // --- Componente Principal ---
 
 export default function CyclesPage() {
-    const [macros, setMacros] = useState<MacroCycle[]>(MOCK_MACRO);
+    const [macros, setMacros] = useState<MacroCycle[]>([]);
     const [selectedMicro, setSelectedMicro] = useState<MicroCycle | null>(null);
     const [selectedMacro, setSelectedMacro] = useState<MacroCycle | null>(null);
     const [selectedMeso, setSelectedMeso] = useState<MesoCycle | null>(null);
@@ -647,6 +648,57 @@ export default function CyclesPage() {
     const [formEndDate, setFormEndDate] = useState('');
     const [formModel, setFormModel] = useState('');
     const [formArchitecture, setFormArchitecture] = useState('');
+    const [formError, setFormError] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadMacros();
+    }, []);
+
+    const loadMacros = async () => {
+        try {
+            const data = await cyclesService.getAll();
+            setMacros(data);
+        } catch (error) {
+            console.error("Failed to load macros:", error);
+        }
+    };
+
+    const translateMessage = (msg: string) => {
+        const lower = msg.toLowerCase();
+        if (lower.includes("input should be a valid date")) return "Data inválida ou obrigatória.";
+        if (lower.includes("field required")) return "Este campo é obrigatório.";
+        if (lower.includes("must be within macro dates")) return "As datas do mesociclo devem estar dentro do período do macrociclo.";
+        if (lower.includes("must be within meso dates")) return "As datas do microciclo devem estar dentro do período do mesociclo.";
+        if (lower.includes("overlap") && lower.includes("macro")) {
+            // Extract the cycle name from the error message
+            const match = msg.match(/'([^']+)'/);
+            const cycleName = match ? match[1] : "outro ciclo";
+            return `As datas escolhidas conflitam com o macrociclo "${cycleName}". Os macrociclos não podem se sobrepor.`;
+        }
+        if (lower.includes("overlap") && lower.includes("meso")) {
+            // Extract the cycle name from the error message
+            const match = msg.match(/'([^']+)'/);
+            const cycleName = match ? match[1] : "outro ciclo";
+            return `As datas escolhidas conflitam com o mesociclo "${cycleName}". Os mesociclos não podem se sobrepor.`;
+        }
+        if (lower.includes("overlap") && lower.includes("micro")) {
+            const match = msg.match(/'([^']+)'/);
+            const cycleName = match ? match[1] : "outro ciclo";
+            return `As datas escolhidas conflitam com o microciclo "${cycleName}". Os microciclos não podem se sobrepor.`;
+        }
+        return msg;
+    };
+
+    const extractErrorMessage = (error: any): string => {
+        const data = error.response?.data;
+        if (data?.detail) {
+            if (Array.isArray(data.detail)) {
+                return data.detail.map((err: any) => translateMessage(err.msg || JSON.stringify(err))).join(". ");
+            }
+            return translateMessage(data.detail);
+        }
+        return "Ocorreu um erro inesperado. Verifique os dados e tente novamente.";
+    };
 
     const handleMacroClick = (id: string) => {
         setMacros(macros.map(m => m.id === id ? { ...m, isExpanded: !m.isExpanded } : m));
@@ -689,6 +741,7 @@ export default function CyclesPage() {
         setFormEndDate('');
         setFormModel('');
         setFormArchitecture('');
+        setFormError(null);
         setEditingId(null);
     };
 
@@ -764,130 +817,107 @@ export default function CyclesPage() {
         setShowDeleteConfirm(true);
     };
 
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (!deleteTarget) return;
         const { id, type } = deleteTarget;
 
-        if (type === 'MACRO') {
-            setMacros(macros.filter(m => m.id !== id));
-            if (selectedMacro?.id === id) setSelectedMacro(null);
-        } else if (type === 'MESO') {
-            setMacros(macros.map(m => ({
-                ...m,
-                mesos: m.mesos.filter(me => me.id !== id)
-            })));
-            if (selectedMeso?.id === id) setSelectedMeso(null);
-        } else if (type === 'MICRO') {
-            setMacros(macros.map(m => ({
-                ...m,
-                mesos: m.mesos.map(me => ({
-                    ...me,
-                    micros: me.micros.filter(mi => mi.id !== id)
-                }))
-            })));
-            if (selectedMicro?.id === id) setSelectedMicro(null);
+        try {
+            if (type === 'MACRO') {
+                await cyclesService.deleteMacro(id);
+                if (selectedMacro?.id === id) setSelectedMacro(null);
+            } else if (type === 'MESO') {
+                await cyclesService.deleteMeso(id);
+                if (selectedMeso?.id === id) setSelectedMeso(null);
+            } else if (type === 'MICRO') {
+                await cyclesService.deleteMicro(id);
+                if (selectedMicro?.id === id) setSelectedMicro(null);
+            }
+            await loadMacros();
+            setShowDeleteConfirm(false);
+            setDeleteTarget(null);
+        } catch (error) {
+            console.error("Failed to delete:", error);
+            alert("Erro ao excluir item. Tente novamente.");
         }
-
-        setShowDeleteConfirm(false);
-        setDeleteTarget(null);
     };
 
-    const handleSaveMacro = () => {
-        if (editingId) {
-            setMacros(macros.map(m => m.id === editingId ? {
-                ...m,
-                name: formName,
-                startDate: formStartDate,
-                endDate: formEndDate,
-                model: formModel,
-                architecture: formArchitecture
-            } : m));
-        } else {
-            const newMacro: MacroCycle = {
-                id: Date.now().toString(),
-                name: formName,
-                season: 'Nova Temporada',
-                startDate: formStartDate,
-                endDate: formEndDate,
-                model: formModel,
-                architecture: formArchitecture,
-                isExpanded: true,
-                mesos: []
-            };
-            setMacros([...macros, newMacro]);
+    const handleSaveMacro = async () => {
+        setFormError(null);
+        try {
+            if (editingId) {
+                await cyclesService.updateMacro(editingId, {
+                    name: formName,
+                    startDate: formStartDate,
+                    endDate: formEndDate,
+                    model: formModel,
+                    architecture: formArchitecture
+                });
+            } else {
+                await cyclesService.createMacro({
+                    name: formName,
+                    season: 'Temporada Atual',
+                    startDate: formStartDate,
+                    endDate: formEndDate,
+                    model: formModel,
+                    architecture: formArchitecture
+                });
+            }
+            await loadMacros();
+            closeModal();
+        } catch (error) {
+            console.error(error);
+            setFormError(extractErrorMessage(error));
         }
-        closeModal();
     };
 
-    const handleSaveMeso = () => {
-        if (editingId) {
-            setMacros(macros.map(m => ({
-                ...m,
-                mesos: m.mesos.map(me => me.id === editingId ? {
-                    ...me,
+    const handleSaveMeso = async () => {
+        setFormError(null);
+        try {
+            if (editingId) {
+                await cyclesService.updateMeso(editingId, {
                     name: formName,
                     startDate: formStartDate,
                     endDate: formEndDate
-                } : me)
-            })));
-        } else {
-            if (!targetParentId) return;
-            const newMeso: MesoCycle = {
-                id: Date.now().toString(),
-                name: formName || 'Novo Mesociclo',
-                startDate: formStartDate,
-                endDate: formEndDate,
-                isExpanded: true,
-                micros: []
-            };
-
-            setMacros(macros.map(m => {
-                if (m.id === targetParentId) {
-                    return { ...m, mesos: [...m.mesos, newMeso] };
-                }
-                return m;
-            }));
+                });
+            } else {
+                if (!targetParentId) return;
+                await cyclesService.createMeso(targetParentId, {
+                    name: formName,
+                    startDate: formStartDate,
+                    endDate: formEndDate
+                });
+            }
+            await loadMacros();
+            closeModal();
+        } catch (error) {
+            console.error(error);
+            setFormError(extractErrorMessage(error));
         }
-        closeModal();
     };
 
-    const handleSaveMicro = () => {
-        if (editingId) {
-            setMacros(macros.map(macro => ({
-                ...macro,
-                mesos: macro.mesos.map(meso => ({
-                    ...meso,
-                    micros: meso.micros.map(micro => micro.id === editingId ? {
-                        ...micro,
-                        name: formName,
-                        startDate: formStartDate,
-                        endDate: formEndDate
-                    } : micro)
-                }))
-            })));
-        } else {
-            if (!targetParentId) return;
-            const newMicro: MicroCycle = {
-                id: Date.now().toString(),
-                name: formName || 'Novo Micro',
-                startDate: formStartDate,
-                endDate: formEndDate,
-                focus: ['Geral'],
-                volume: 0,
-                intensity: 'Medium'
-            };
-
-            setMacros(prevMacros => prevMacros.map(macro => ({
-                ...macro,
-                mesos: macro.mesos.map(meso => {
-                    if (meso.id === targetParentId) {
-                        return { ...meso, micros: [...meso.micros, newMicro] };
-                    }
-                    return meso;
-                })
-            })));
+    const handleSaveMicro = async () => {
+        setFormError(null);
+        try {
+            if (editingId) {
+                await cyclesService.updateMicro(editingId, {
+                    name: formName,
+                    startDate: formStartDate,
+                    endDate: formEndDate
+                });
+            } else {
+                if (!targetParentId) return;
+                await cyclesService.createMicro(targetParentId, {
+                    name: formName,
+                    startDate: formStartDate,
+                    endDate: formEndDate
+                });
+            }
+            await loadMacros();
+            closeModal();
+        } catch (error) {
+            console.error(error);
+            setFormError(extractErrorMessage(error));
         }
-        closeModal();
     };
 
     const handleAddMeso = (e: React.MouseEvent, macroId: string) => {
@@ -1056,15 +1086,22 @@ export default function CyclesPage() {
 
             {/* Modals for creation/editing */}
             {modalType !== 'NONE' && (
-                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 max-h-[95vh]">
-                        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
+                <div className="fixed inset-0 bg-brand-slate/60 z-[150] flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in duration-300 overflow-y-auto">
+                    <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl relative animate-in zoom-in-95 duration-200">
+                        <div className="p-4 md:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-[2rem] flex-shrink-0">
                             <h3 className="text-lg md:text-xl font-bold text-slate-800">
                                 {editingId ? 'Editar' : 'Criar'} {modalType === 'MACRO' ? 'Macrociclo' : modalType === 'MESO' ? 'Mesociclo' : 'Microciclo'}
                             </h3>
                             <button onClick={closeModal} className="p-2 hover:bg-white rounded-full transition-colors text-slate-400"><X size={20} /></button>
                         </div>
-                        <div className="p-6 md:p-8 space-y-4 md:space-y-6 overflow-y-auto custom-scrollbar">
+                        <div className="p-6 md:p-8 space-y-4 md:space-y-6 overflow-visible">
+                            {formError && (
+                                <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <AlertTriangle className="text-red-500 shrink-0" size={18} />
+                                    <p className="text-sm text-red-700 font-medium">{formError}</p>
+                                </div>
+                            )}
+
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Nome do Ciclo</label>
                                 <input
@@ -1075,26 +1112,111 @@ export default function CyclesPage() {
                                     className="w-full p-3 md:p-4 bg-slate-50 border border-slate-200 rounded-2xl text-base md:text-lg font-bold text-slate-700 focus:border-brand-orange focus:bg-white outline-none transition-all shadow-inner"
                                 />
                             </div>
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Data Início</label>
-                                    <input
-                                        type="date"
-                                        value={formStartDate}
-                                        onChange={e => setFormStartDate(e.target.value)}
-                                        className="w-full p-3 md:p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:border-brand-orange transition-all"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">Data Fim</label>
-                                    <input
-                                        type="date"
-                                        value={formEndDate}
-                                        onChange={e => setFormEndDate(e.target.value)}
-                                        className="w-full p-3 md:p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:border-brand-orange transition-all"
-                                    />
-                                </div>
+                                {(() => {
+                                    // Calculate min/max dates based on parent cycle and children
+                                    let minDate: string | undefined = undefined;
+                                    let maxDate: string | undefined = undefined;
+                                    let childMinStart: string | undefined = undefined;
+                                    let childMaxEnd: string | undefined = undefined;
+                                    let excludedRanges: Array<{ start: string, end: string }> = [];
+
+                                    if (modalType === 'MACRO') {
+                                        // Get sibling macros to exclude their date ranges
+                                        const siblingMacros = macros.filter(m =>
+                                            m.id !== editingId && m.startDate && m.endDate
+                                        );
+                                        excludedRanges = siblingMacros.map(m => ({
+                                            start: m.startDate,
+                                            end: m.endDate
+                                        }));
+
+                                        if (editingId) {
+                                            const macro = macros.find(m => m.id === editingId);
+                                            if (macro && macro.mesos.length > 0) {
+                                                const validMesos = macro.mesos.filter(me => me.startDate && me.endDate);
+                                                if (validMesos.length > 0) {
+                                                    childMinStart = validMesos.map(m => m.startDate).sort()[0];
+                                                    childMaxEnd = validMesos.map(m => m.endDate).sort().reverse()[0];
+                                                }
+                                            }
+                                        }
+                                    } else if (modalType === 'MESO' && targetParentId) {
+                                        const parentMacro = macros.find(m => m.id === targetParentId);
+                                        if (parentMacro) {
+                                            minDate = parentMacro.startDate;
+                                            maxDate = parentMacro.endDate;
+
+                                            // Get sibling mesos to exclude their date ranges
+                                            const siblingMesos = parentMacro.mesos.filter(m =>
+                                                m.id !== editingId && m.startDate && m.endDate
+                                            );
+                                            excludedRanges = siblingMesos.map(m => ({
+                                                start: m.startDate,
+                                                end: m.endDate
+                                            }));
+                                        }
+
+                                        if (editingId) {
+                                            const macro = macros.find(m => m.mesos.some(me => me.id === editingId));
+                                            const meso = macro?.mesos.find(me => me.id === editingId);
+                                            if (meso && meso.micros.length > 0) {
+                                                const validMicros = meso.micros.filter(mi => mi.startDate && mi.endDate);
+                                                if (validMicros.length > 0) {
+                                                    childMinStart = validMicros.map(m => m.startDate).sort()[0];
+                                                    childMaxEnd = validMicros.map(m => m.endDate).sort().reverse()[0];
+                                                }
+                                            }
+                                        }
+                                    } else if (modalType === 'MICRO' && targetParentId) {
+                                        let parentMeso: MesoCycle | undefined;
+                                        for (const m of macros) {
+                                            parentMeso = m.mesos.find(me => me.id === targetParentId);
+                                            if (parentMeso) break;
+                                        }
+                                        if (parentMeso) {
+                                            minDate = parentMeso.startDate;
+                                            maxDate = parentMeso.endDate;
+
+                                            // Get sibling micros to exclude their date ranges
+                                            const siblingMicros = parentMeso.micros.filter(mi =>
+                                                mi.id !== editingId && mi.startDate && mi.endDate
+                                            );
+                                            excludedRanges = siblingMicros.map(mi => ({
+                                                start: mi.startDate,
+                                                end: mi.endDate
+                                            }));
+                                        }
+                                    }
+
+                                    return (
+                                        <>
+                                            <div>
+                                                <DatePicker
+                                                    label="Data Início"
+                                                    value={formStartDate}
+                                                    onChange={setFormStartDate}
+                                                    min={minDate}
+                                                    max={formEndDate ? formEndDate : (childMinStart || maxDate)}
+                                                    excludedRanges={excludedRanges}
+                                                />
+                                            </div>
+                                            <div>
+                                                <DatePicker
+                                                    label="Data Fim"
+                                                    value={formEndDate}
+                                                    onChange={setFormEndDate}
+                                                    min={formStartDate ? formStartDate : (childMaxEnd || minDate)}
+                                                    max={maxDate}
+                                                    excludedRanges={excludedRanges}
+                                                />
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
+
                             {modalType === 'MACRO' && (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
@@ -1108,7 +1230,7 @@ export default function CyclesPage() {
                                 </div>
                             )}
                         </div>
-                        <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3 flex-shrink-0">
+                        <div className="p-4 md:p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3 rounded-b-[2rem] flex-shrink-0">
                             <button onClick={closeModal} className="px-4 md:px-6 py-2 md:py-3 text-sm md:text-base text-slate-500 font-bold hover:bg-white rounded-xl transition-colors">Cancelar</button>
                             <button
                                 onClick={modalType === 'MACRO' ? handleSaveMacro : modalType === 'MESO' ? handleSaveMeso : handleSaveMicro}

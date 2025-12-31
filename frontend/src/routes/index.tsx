@@ -8,7 +8,13 @@ import CompetitionPage from '@/pages/CompetitionPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import AthletesPage from '@/pages/AthletesPage';
 
+import LoginPage from '@/pages/LoginPage';
+
 export const router = createBrowserRouter([
+    {
+        path: '/login',
+        element: <LoginPage />,
+    },
     {
         path: '/',
         element: <DashboardLayout />,

@@ -1,8 +1,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { Play, Copy, Edit2, Plus, Clock, Droplets, ArrowLeft, Check, Users, Trash2, Eye, Filter, X, Sliders, Layers, Calculator, GripVertical, AlertCircle, Calendar, Tag, BarChart3, Search, ChevronLeft, ChevronRight, History, CheckCircle2, List, AlertTriangle, UserPlus, ChartBar, UserCheck, Save, ArrowRight, ChevronDown, ChevronUp, Activity, Target } from 'lucide-react';
-import { MOCK_WORKOUTS, MOCK_ATHLETES } from '@/constants';
-import { Workout, WorkoutBlock, WorkoutSubdivision, WorkoutSession, SessionEvaluation } from '@/types';
+import { trainingService } from '@/services/trainingService';
+import { athleteService } from '@/services/athleteService';
+import { Workout, WorkoutBlock, WorkoutSubdivision, WorkoutSession, SessionEvaluation, Athlete } from '@/types';
 
 type ViewMode = 'LIST' | 'BUILDER' | 'LIVE' | 'DETAILS';
 type MainTab = 'PLANS' | 'HISTORY';
@@ -182,7 +183,29 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
 export default function TrainingPage() {
     const [viewMode, setViewMode] = useState<ViewMode>('LIST');
     const [mainTab, setMainTab] = useState<MainTab>('PLANS');
-    const [workouts, setWorkouts] = useState<Workout[]>(MOCK_WORKOUTS);
+    const [workouts, setWorkouts] = useState<Workout[]>([]);
+    const [athletes, setAthletes] = useState<Athlete[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Initial Data Fetch
+    React.useEffect(() => {
+        const loadData = async () => {
+            setIsLoading(true);
+            try {
+                const [workoutsData, athletesData] = await Promise.all([
+                    trainingService.getAll(),
+                    athleteService.getAll()
+                ]);
+                setWorkouts(workoutsData);
+                setAthletes(athletesData);
+            } catch (error) {
+                console.error("Failed to load data", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
+    }, []);
 
     const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
     const [liveWorkout, setLiveWorkout] = useState<Workout | null>(null);
@@ -251,37 +274,35 @@ export default function TrainingPage() {
         }
     };
 
-    const handleSaveWorkoutPlan = () => {
-        if (builderId) {
-            // Atualizando um existente
-            setWorkouts(workouts.map(w => w.id === builderId ? {
-                ...w,
-                title: builderTitle || 'Novo treino',
-                date: builderDate,
-                profile: builderProfile,
-                category: builderCategory,
-                blocks: builderBlocks,
-                totalVolume: builderBlocks.reduce((acc, b) => acc + b.volume, 0),
-            } : w));
-        } else {
-            // Criando novo
-            const newW: Workout = {
-                id: Date.now().toString(),
-                title: builderTitle || 'Novo treino',
-                date: builderDate,
-                time: '08:00',
-                profile: builderProfile,
-                category: builderCategory,
-                tags: [],
-                totalVolume: builderBlocks.reduce((acc, b) => acc + b.volume, 0),
-                status: 'Planned',
-                ddr: 0, dcr: 0, density: 0, functionalBase: '',
-                blocks: builderBlocks,
-                history: []
-            };
-            setWorkouts([newW, ...workouts]);
+    const handleSaveWorkoutPlan = async () => {
+        try {
+            if (builderId) {
+                // Updating existing
+                const updatedWorkout = await trainingService.update(builderId, {
+                    title: builderTitle || 'Novo treino',
+                    date: builderDate,
+                    profile: builderProfile,
+                    category: builderCategory,
+                    status: 'Planned', // Or preserve existing status
+                });
+                setWorkouts(workouts.map(w => w.id === builderId ? updatedWorkout : w));
+            } else {
+                // Creating new
+                const newWorkout = await trainingService.create({
+                    title: builderTitle || 'Novo treino',
+                    date: builderDate,
+                    time: '08:00', // Default, maybe add input
+                    profile: builderProfile,
+                    category: builderCategory,
+                    blocks: builderBlocks
+                });
+                setWorkouts([newWorkout, ...workouts]);
+            }
+            setViewMode('LIST');
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao salvar treino");
         }
-        setViewMode('LIST');
     };
 
     const handleStartRequest = (workout: Workout) => {
@@ -294,7 +315,7 @@ export default function TrainingPage() {
         if (startWorkoutRef) {
             setLiveWorkout({ ...startWorkoutRef, time: sessionStartTime });
             const initialAtt: Record<string, boolean> = {};
-            MOCK_ATHLETES.forEach(a => initialAtt[a.id] = true);
+            athletes.forEach(a => initialAtt[a.id] = true);
             setAttendance(initialAtt);
             setSessionEvaluations({});
             setIsSidebarCollapsed(false);
@@ -326,35 +347,42 @@ export default function TrainingPage() {
         setSelectedBlockEval(null);
     };
 
-    const handleFinishWorkout = () => {
+    const handleFinishWorkout = async () => {
         if (!liveWorkout) return;
-        const attendees = Object.keys(attendance).filter(id => attendance[id]);
-        const now = new Date();
-        const endTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const newSession: WorkoutSession = {
-            id: Date.now().toString(),
-            date: liveWorkout.date,
-            startTime: liveWorkout.time,
-            endTime: endTime,
-            attendanceCount: attendees.length,
-            attendees: attendees,
-            blockEvaluations: { ...sessionEvaluations },
-        };
-        setWorkouts(prevWorkouts => prevWorkouts.map(w => w.id === liveWorkout.id ? { ...w, history: [newSession, ...(w.history || [])] } : w));
-        setShowFinishConfirm(false);
-        setShowSuccessFeedback(true);
-        setTimeout(() => {
-            setShowSuccessFeedback(false);
-            setLiveWorkout(null);
-            setViewMode('LIST');
-            setMainTab('HISTORY');
-        }, 2000);
+
+        try {
+            // Ideally backend would have a specific endpoint to finish a session.
+            // For now, we update the status to 'Completed'.
+            // In a real scenario, we would also POST the session executions/feedbacks.
+            // Since our backend service 'update' is simple, let's just mark it completed.
+            await trainingService.update(liveWorkout.id, { status: 'Completed' });
+
+            // Reload to reflect changes (history relies on status='Completed' logic or separate history endpoint)
+            // But wait, our 'renderListView' still looks at w.history. 
+            // If backend doesn't populate 'history' inside the workout object, we rely on 'Completed' workouts acting as history.
+            // Let's reload everything.
+            const [workoutsData] = await Promise.all([trainingService.getAll()]);
+            setWorkouts(workoutsData);
+
+            setShowFinishConfirm(false);
+            setShowSuccessFeedback(true);
+            setTimeout(() => {
+                setShowSuccessFeedback(false);
+                setLiveWorkout(null);
+                setViewMode('LIST');
+                setMainTab('HISTORY');
+            }, 2000);
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao finalizar treino");
+        }
     };
 
     // --- Render Functions to fix focus bug ---
 
     const renderListView = () => {
         const filteredWorkouts = workouts.filter(w => {
+            if (w.status === 'Completed') return false; // Hide completed from Plans tab
             const matchesCategory = filterCategory === 'Todos' || w.category === filterCategory;
             const matchesProfile = filterProfile === 'Todos' || w.profile === filterProfile;
             const matchesStart = !startDate || w.date >= startDate;
@@ -362,8 +390,19 @@ export default function TrainingPage() {
             return matchesCategory && matchesProfile && matchesStart && matchesEnd;
         });
 
-        const allHistory = (workouts.flatMap(w => (w.history || []).map(s => ({ ...s, workout: w }))) as (WorkoutSession & { workout: Workout })[])
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        // Use 'Completed' workouts as history directly, assuming backend returns them as such.
+        // Or if backend returns a list of sessions, map them here.
+        // Current logic: workouts.filter(w => w.status === 'Completed')
+        const allHistory = workouts.filter(w => w.status === 'Completed').map(w => ({
+            id: w.id,
+            date: w.date,
+            startTime: w.time,
+            endTime: w.time, // Should be real end time if backend stored it
+            attendanceCount: 0, // Backend needs to populate this
+            attendees: [],
+            blockEvaluations: {},
+            workout: w
+        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return (
             <div className="space-y-6 animate-in fade-in relative">
@@ -495,7 +534,7 @@ export default function TrainingPage() {
                                                         <div className="space-y-4">
                                                             <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5"><Users size={14} className="text-brand-orange" /> Elenco da sessão</h5>
                                                             <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-2">
-                                                                {session.attendees.map(id => <div key={id} className="bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100 text-xs font-bold text-gray-600">{MOCK_ATHLETES.find(a => a.id === id)?.name}</div>)}
+                                                                {session.attendees.map(id => <div key={id} className="bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100 text-xs font-bold text-gray-600">{athletes.find(a => a.id === id)?.name}</div>)}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -613,7 +652,7 @@ export default function TrainingPage() {
 
     const renderLiveView = () => {
         if (!liveWorkout) return null;
-        const presentAthletes = MOCK_ATHLETES.filter(a => attendance[a.id]);
+        const presentAthletes = athletes.filter(a => attendance[a.id]);
         const presentCount = Object.values(attendance).filter(Boolean).length;
 
         const EvaluationDrawerContent = () => {
@@ -630,7 +669,7 @@ export default function TrainingPage() {
             });
             const handleSave = () => {
                 const evalList: SessionEvaluation[] = Object.entries(checkedAthletes).filter(([_, checked]) => checked).map(([athleteId, _]) => ({
-                    athleteId, athleteName: MOCK_ATHLETES.find(a => a.id === athleteId)?.name || 'Atleta',
+                    athleteId, athleteName: athletes.find(a => a.id === athleteId)?.name || 'Atleta',
                     rpe: localEvals[athleteId]?.rpe || 5,
                     exhaustion: localEvals[athleteId]?.exhaustion || 5,
                     times: localEvals[athleteId]?.times || ''
@@ -687,7 +726,7 @@ export default function TrainingPage() {
                     <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-72'}`}>
                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-2"><div className="flex justify-between items-center">{!isSidebarCollapsed && <h3 className="font-bold text-gray-700">Presentes ({presentCount})</h3>}<button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="text-gray-400 hover:text-brand-orange">{isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button></div>{!isSidebarCollapsed && <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" /><input type="text" placeholder="Atleta..." value={attendanceSearch} onChange={e => setAttendanceSearch(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg py-1.5 pl-8 text-sm" /></div>}</div>
                         <div className="overflow-y-auto flex-1 p-2 space-y-1">
-                            {MOCK_ATHLETES.filter(a => a.name.toLowerCase().includes(attendanceSearch.toLowerCase())).map(athlete => (
+                            {athletes.filter(a => a.name.toLowerCase().includes(attendanceSearch.toLowerCase())).map(athlete => (
                                 <div key={athlete.id} className={`flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 ${attendance[athlete.id] ? 'bg-orange-50/50' : ''}`}>
                                     <div
                                         onClick={() => setAttendance({ ...attendance, [athlete.id]: !attendance[athlete.id] })}

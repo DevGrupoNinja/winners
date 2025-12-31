@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { MobileMenu } from './MobileMenu';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 import {
     Dumbbell,
     Target,
@@ -15,6 +17,20 @@ import {
 
 export function DashboardLayout() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const { isAuthenticated, isLoading } = useAuth();
+    const location = useLocation();
+
+    if (isLoading) {
+        return (
+            <div className="h-screen w-screen flex items-center justify-center bg-brand-bg text-white">
+                <Loader2 className="animate-spin w-8 h-8 text-brand-orange" />
+            </div>
+        );
+    }
+
+    if (!isAuthenticated) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
 
     return (
         <div className="min-h-screen bg-brand-bg">

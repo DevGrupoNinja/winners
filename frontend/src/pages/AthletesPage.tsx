@@ -1,6 +1,6 @@
 
-import React, { useState, useMemo } from 'react';
-// Fix: Adding missing ChevronLeft and Save icons to the lucide-react import list
+import React, { useState, useMemo, useEffect } from 'react';
+// ... imports ...
 import {
     User,
     Search,
@@ -23,17 +23,34 @@ import {
     ChevronLeft,
     Save
 } from 'lucide-react';
-import { MOCK_ATHLETES } from '@/constants';
 import { Athlete } from '@/types';
+import { athleteService } from '@/services/athleteService'; // Import service
 
 type ViewMode = 'LIST' | 'FORM';
 
 export default function AthletesPage() {
-    const [athletes, setAthletes] = useState<Athlete[]>(MOCK_ATHLETES);
+    const [athletes, setAthletes] = useState<Athlete[]>([]); // Init empty
+    const [isLoading, setIsLoading] = useState(true); // Add loading state
     const [viewMode, setViewMode] = useState<ViewMode>('LIST');
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('Todos');
     const [statusFilter, setStatusFilter] = useState('Todos');
+
+    const loadAthletes = async () => {
+        try {
+            setIsLoading(true);
+            const data = await athleteService.getAll();
+            setAthletes(data);
+        } catch (error) {
+            console.error("Failed to load athletes", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadAthletes();
+    }, []);
 
     const [editingAthlete, setEditingAthlete] = useState<Athlete | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -85,36 +102,48 @@ export default function AthletesPage() {
         setViewMode('FORM');
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.firstName || !formData.lastName || !formData.cpf) {
             alert('Por favor, preencha os campos obrigatórios (Nome, Sobrenome e CPF).');
             return;
         }
 
-        if (editingAthlete) {
-            setAthletes(prev => prev.map(a => a.id === editingAthlete.id ? {
-                ...(formData as Athlete),
-                id: a.id,
-                name: `${formData.firstName} ${formData.lastName}`
-            } : a));
-        } else {
-            const newId = Date.now().toString();
-            setAthletes(prev => [...prev, {
-                ...(formData as Athlete),
-                id: newId,
-                name: `${formData.firstName} ${formData.lastName}`
-            }]);
+        try {
+            if (editingAthlete) {
+                await athleteService.update(editingAthlete.id, formData as Athlete);
+            } else {
+                await athleteService.create(formData as Athlete);
+            }
+            await loadAthletes(); // Refresh list
+            setViewMode('LIST');
+        } catch (error) {
+            console.error("Error saving athlete", error);
+            alert("Erro ao salvar atleta.");
         }
-        setViewMode('LIST');
     };
 
-    const handleDelete = (id: string) => {
-        setAthletes(prev => prev.filter(a => a.id !== id));
-        setShowDeleteConfirm(null);
+    const handleDelete = async (id: string) => {
+        try {
+            await athleteService.delete(id);
+            await loadAthletes();
+            setShowDeleteConfirm(null);
+        } catch (error) {
+            console.error("Error deleting athlete", error);
+            alert("Erro ao remover atleta.");
+        }
     };
 
-    const toggleStatus = (id: string) => {
-        setAthletes(prev => prev.map(a => a.id === id ? { ...a, status: a.status === 'Active' ? 'Blocked' : 'Active' } : a));
+    const toggleStatus = async (id: string) => {
+        try {
+            const athlete = athletes.find(a => a.id === id);
+            if (athlete) {
+                const newStatus = athlete.status === 'Active' ? 'Blocked' : 'Active';
+                await athleteService.update(id, { status: newStatus });
+                await loadAthletes();
+            }
+        } catch (error) {
+            console.error("Error updating status", error);
+        }
     };
 
     const categories = ['Todos', 'Absoluto', 'Infantil', 'Petiz', 'Master'];
