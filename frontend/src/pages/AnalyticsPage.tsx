@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     LineChart,
     Line,
@@ -11,7 +10,8 @@ import {
     AreaChart,
     Area
 } from 'recharts';
-import { MOCK_ASSESSMENT_HISTORY, MOCK_ATHLETES } from '@/constants';
+import { athleteService } from '@/services/athleteService';
+import { analyticsService } from '@/services/analyticsService';
 import {
     TrendingUp,
     Weight,
@@ -46,8 +46,10 @@ type AthleteGroup = 'Todos' | 'Geral' | 'Infantil' | 'Petiz';
 type TechnicalCategory = 'all' | 'peso' | 'salto' | 'arremesso' | 'bem-estar';
 
 export default function AnalyticsPage() {
-    // Assessment History state
-    const [history, setHistory] = useState<AssessmentData[]>(MOCK_ASSESSMENT_HISTORY);
+    // Data State
+    const [athletes, setAthletes] = useState<Athlete[]>([]);
+    const [history, setHistory] = useState<AssessmentData[]>([]);
+    const [loading, setLoading] = useState(true);
 
     // Filters State
     const [selectedGroup, setSelectedGroup] = useState<AthleteGroup>('Todos');
@@ -61,6 +63,71 @@ export default function AnalyticsPage() {
 
     // Accordion State for List View
     const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+    const loadData = React.useCallback(async () => {
+        try {
+            setLoading(true);
+            const [athletesData, assessmentsData, wellnessData] = await Promise.all([
+                athleteService.getAll(),
+                analyticsService.getAssessments(),
+                analyticsService.getWellness()
+            ]);
+
+            setAthletes(athletesData);
+
+            // Step 1: Merge all assessments for the same athlete+date into a single record
+            const assessmentMap = new Map<string, AssessmentData>();
+            assessmentsData.forEach(a => {
+                const key = `${a.athleteId}-${a.date}`;
+                const existing = assessmentMap.get(key);
+                if (existing) {
+                    // Merge: take non-null/non-zero values from both
+                    if (a.weight && a.weight > 0) existing.weight = a.weight;
+                    if (a.jumpHeight && a.jumpHeight > 0) existing.jumpHeight = a.jumpHeight;
+                    if (a.throwDistance && a.throwDistance > 0) existing.throwDistance = a.throwDistance;
+                    if (a.observation) existing.observation = a.observation;
+                    // Keep the first ID encountered or the most recent
+                    if (!existing.id) existing.id = a.id;
+                } else {
+                    assessmentMap.set(key, { ...a });
+                }
+            });
+
+            // Step 2: Merge wellness data into combined records (same logic - only overwrite with valid values)
+            wellnessData.forEach(w => {
+                const key = `${w.athleteId}-${w.date}`;
+                const existing = assessmentMap.get(key);
+                if (existing) {
+                    // Only overwrite wellness fields if new values are valid
+                    if (w.wellnessScore != null && w.wellnessScore > 0) existing.wellnessScore = w.wellnessScore;
+                    if (w.wellnessDetails) {
+                        // Merge wellness details, preserving existing valid values
+                        if (!existing.wellnessDetails) {
+                            existing.wellnessDetails = { sleep: 5, fatigue: 5, pain: 5, stress: 5 };
+                        }
+                        if (w.wellnessDetails.sleep != null) existing.wellnessDetails.sleep = w.wellnessDetails.sleep;
+                        if (w.wellnessDetails.fatigue != null) existing.wellnessDetails.fatigue = w.wellnessDetails.fatigue;
+                        if (w.wellnessDetails.pain != null) existing.wellnessDetails.pain = w.wellnessDetails.pain;
+                        if (w.wellnessDetails.stress != null) existing.wellnessDetails.stress = w.wellnessDetails.stress;
+                    }
+                    if (w.wellnessId && !existing.wellnessId) existing.wellnessId = w.wellnessId;
+                } else {
+                    assessmentMap.set(key, { ...w });
+                }
+            });
+
+            const combined = Array.from(assessmentMap.values());
+            setHistory(combined.sort((a, b) => a.date.localeCompare(b.date)));
+        } catch (error) {
+            console.error("Failed to load analytics data", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     // Modal States (Register & Edit)
     const [showRegisterModal, setShowRegisterModal] = useState(false);
@@ -83,38 +150,75 @@ export default function AnalyticsPage() {
     ];
 
     const filteredAthletes = useMemo(() => {
-        return MOCK_ATHLETES.filter(a => {
+        return athletes.filter(a => {
             const matchGroup = selectedGroup === 'Todos' || a.category === selectedGroup;
             const matchSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase());
             return matchGroup && matchSearch;
         });
-    }, [selectedGroup, searchTerm]);
+    }, [athletes, selectedGroup, searchTerm]);
 
     const getAthleteStats = (athleteId: string) => {
         let athleteHistory = history.filter(h => h.athleteId === athleteId).sort((a, b) => a.date.localeCompare(b.date));
 
-        if (athleteHistory.length === 0) return null;
+        const calcMetricStats = (currentVal: any, previousVal: any, allVals: any[]) => {
+            const current = parseFloat(currentVal) || 0;
+            const previous = previousVal !== null ? (parseFloat(previousVal) || 0) : null;
+            const validHistory = allVals.map(v => parseFloat(v) || 0).filter(v => v > 0);
 
-        const latest = athleteHistory[athleteHistory.length - 1];
-        const previous = athleteHistory.length > 1 ? athleteHistory[athleteHistory.length - 2] : latest;
+            const bestAllTime = validHistory.length > 0 ? Math.max(...validHistory) : 0;
 
-        const calcDiff = (curr: number = 0, prev: number = 0) => {
-            const diff = curr - prev;
+            const hasHistory = previous !== null && previous > 0 && current > 0;
+            const evolution = hasHistory ? ((current - previous) / previous) * 100 : 0;
+
+            const isPB = current > 0 && current >= bestAllTime;
+            const hasBest = !isPB && bestAllTime > 0 && current > 0;
+            const vsBest = hasBest ? ((current - bestAllTime) / bestAllTime) * 100 : 0;
+
             return {
-                val: diff.toFixed(1),
-                isPositive: diff >= 0,
-                pct: prev !== 0 ? ((diff / prev) * 100).toFixed(1) : '0'
+                evolution: {
+                    val: Math.abs(evolution).toFixed(1),
+                    isPositive: evolution >= 0,
+                    show: hasHistory
+                },
+                vsBest: {
+                    val: Math.abs(vsBest).toFixed(1),
+                    isPositive: vsBest >= 0,
+                    isPB,
+                    show: hasBest || isPB
+                }
             };
         };
+
+        if (athleteHistory.length === 0) {
+            const emptyStat = { evolution: { val: '0', isPositive: true, show: false }, vsBest: { val: '0', isPositive: true, isPB: false, show: false } };
+            return {
+                history: [],
+                latest: { date: 'Sem dados', weight: 0, jumpHeight: 0, throwDistance: 0, wellnessScore: 0 },
+                stats: {
+                    weight: emptyStat,
+                    jump: emptyStat,
+                    throw: emptyStat,
+                    wellness: emptyStat,
+                }
+            };
+        }
+
+        const latest = athleteHistory[athleteHistory.length - 1];
+        const previous = athleteHistory.length > 1 ? athleteHistory[athleteHistory.length - 2] : null;
+
+        const allWeights = athleteHistory.map(h => h.weight || 0);
+        const allJumps = athleteHistory.map(h => h.jumpHeight || 0);
+        const allThrows = athleteHistory.map(h => h.throwDistance || 0);
+        const allWellness = athleteHistory.map(h => h.wellnessScore || 0);
 
         return {
             history: athleteHistory,
             latest,
-            diffs: {
-                weight: calcDiff(latest.weight, previous.weight),
-                jump: calcDiff(latest.jumpHeight, previous.jumpHeight),
-                throw: calcDiff(latest.throwDistance, previous.throwDistance),
-                wellness: calcDiff(latest.wellnessScore, previous.wellnessScore),
+            stats: {
+                weight: calcMetricStats(latest.weight, previous ? previous.weight : null, allWeights),
+                jump: calcMetricStats(latest.jumpHeight, previous ? previous.jumpHeight : null, allJumps),
+                throw: calcMetricStats(latest.throwDistance, previous ? previous.throwDistance : null, allThrows),
+                wellness: calcMetricStats(latest.wellnessScore, previous ? previous.wellnessScore : null, allWellness),
             }
         };
     };
@@ -135,45 +239,65 @@ export default function AnalyticsPage() {
         setShowRegisterModal(true);
     };
 
-    const handleSaveAssessments = () => {
-        const newEntries: AssessmentData[] = regSelectedAthleteIds.map(athleteId => {
-            const data = regData[athleteId] || {};
-            const entry: AssessmentData = {
-                athleteId,
-                date: regDate,
-            };
+    const handleSaveAssessments = async () => {
+        try {
+            const entriesToSave = regSelectedAthleteIds.map(athleteId => {
+                const data = regData[athleteId] || {};
+                const entry: any = {
+                    athleteId,
+                    date: regDate,
+                };
 
-            if (regCategory === 'peso') entry.weight = parseFloat(data.weight) || 0;
-            if (regCategory === 'salto') entry.jumpHeight = parseFloat(data.jumpHeight) || 0;
-            if (regCategory === 'arremesso') entry.throwDistance = parseFloat(data.throwDistance) || 0;
+                if (regCategory === 'peso') entry.weight = parseFloat(data.weight) || 0;
+                if (regCategory === 'salto') entry.jumpHeight = parseFloat(data.jumpHeight) || 0;
+                if (regCategory === 'arremesso') entry.throwDistance = parseFloat(data.throwDistance) || 0;
+                if (regCategory === 'bem-estar') {
+                    entry.wellnessDetails = {
+                        sleep: parseInt(data.sleep) || 5,
+                        fatigue: parseInt(data.fatigue) || 5,
+                        pain: parseInt(data.pain) || 5,
+                        stress: parseInt(data.stress) || 5
+                    };
+                }
+                return entry;
+            });
+
             if (regCategory === 'bem-estar') {
-                const sleep = parseInt(data.sleep) || 5;
-                const fatigue = parseInt(data.fatigue) || 5;
-                const pain = parseInt(data.pain) || 5;
-                const stress = parseInt(data.stress) || 5;
-                entry.wellnessScore = (sleep + fatigue + pain + stress) / 4;
-                entry.wellnessDetails = { sleep, fatigue, pain, stress };
+                await analyticsService.createWellnessBulk(entriesToSave);
+            } else {
+                await analyticsService.createAssessmentsBulk(entriesToSave);
             }
 
-            const lastEntry = history.filter(h => h.athleteId === athleteId).slice(-1)[0];
-            if (lastEntry) {
-                if (entry.weight === undefined) entry.weight = lastEntry.weight;
-                if (entry.jumpHeight === undefined) entry.jumpHeight = lastEntry.jumpHeight;
-                if (entry.throwDistance === undefined) entry.throwDistance = lastEntry.throwDistance;
-                if (entry.wellnessScore === undefined) entry.wellnessScore = lastEntry.wellnessScore;
-                if (entry.wellnessDetails === undefined) entry.wellnessDetails = lastEntry.wellnessDetails;
-            }
+            // Reload data
+            await loadData();
 
-            return entry;
-        });
-
-        setHistory(prev => [...prev, ...newEntries]);
-        setShowRegisterModal(false);
+            setShowRegisterModal(false);
+            setRegSelectedAthleteIds([]);
+            setRegData({});
+        } catch (error) {
+            console.error("Failed to save assessments", error);
+            alert("Erro ao salvar avaliações");
+        }
     };
 
-    const handleDeleteEntry = (athleteId: string, date: string) => {
+    const handleDeleteEntry = async (athleteId: string, date: string) => {
         if (confirm('Tem certeza que deseja excluir este registro histórico?')) {
-            setHistory(prev => prev.filter(h => !(h.athleteId === athleteId && h.date === date)));
+            try {
+                const entry = history.find(h => h.athleteId === athleteId && h.date === date);
+                if (!entry) return;
+
+                const deletePromises = [];
+                if (entry.id) deletePromises.push(analyticsService.deleteAssessment(entry.id));
+                if (entry.wellnessId) deletePromises.push(analyticsService.deleteWellness(entry.wellnessId));
+
+                await Promise.all(deletePromises);
+
+                // Refetch data
+                await loadData();
+            } catch (error) {
+                console.error("Failed to delete entry", error);
+                alert("Erro ao excluir registro");
+            }
         }
     };
 
@@ -220,9 +344,9 @@ export default function AnalyticsPage() {
     );
 
     const renderAthleteDetails = () => {
-        const athlete = MOCK_ATHLETES.find(a => a.id === selectedAthleteIdForDetail);
+        const athlete = athletes.find(a => a.id === selectedAthleteIdForDetail);
         const stats = getAthleteStats(selectedAthleteIdForDetail!);
-        if (!athlete || !stats) return null;
+        if (!athlete) return null;
 
         return (
             <div className="h-full flex flex-col space-y-8 animate-in slide-in-from-right-4 duration-500 overflow-hidden pb-10">
@@ -253,46 +377,41 @@ export default function AnalyticsPage() {
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-8 pb-10">
                     {/* Summary Indicators */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-brand-orange"><Weight size={20} /></div>
-                                <span className={`text-[10px] font-black flex items-center gap-0.5 ${stats.diffs.weight.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                    {stats.diffs.weight.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {stats.diffs.weight.pct}%
-                                </span>
+                        {[
+                            { label: 'Peso Corporal', icon: Weight, iconColor: 'text-brand-orange', bgColor: 'bg-orange-50', unit: 'kg', stats: stats.stats.weight, value: stats.latest.weight },
+                            { label: 'Salto Vertical', icon: Zap, iconColor: 'text-emerald-500', bgColor: 'bg-emerald-50', unit: 'cm', stats: stats.stats.jump, value: stats.latest.jumpHeight },
+                            { label: 'Arremesso', icon: Target, iconColor: 'text-blue-500', bgColor: 'bg-blue-50', unit: 'm', stats: stats.stats.throw, value: stats.latest.throwDistance },
+                            { label: 'Bem-estar', icon: Heart, iconColor: 'text-pink-500', bgColor: 'bg-pink-50', unit: '/10', stats: stats.stats.wellness, value: stats.latest.wellnessScore?.toFixed(1) }
+                        ].map((item, idx) => (
+                            <div key={idx} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div className={`w-12 h-12 ${item.bgColor} ${item.iconColor} rounded-2xl flex items-center justify-center`}>
+                                        <item.icon size={24} />
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1.5">
+                                        {item.stats.evolution.show && (
+                                            <div className={`flex items-center gap-1 text-[10px] font-black ${item.stats.evolution.isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                {item.stats.evolution.isPositive ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                                {item.stats.evolution.val}% EVOLUÇÃO
+                                            </div>
+                                        )}
+                                        {item.stats.vsBest.show && (
+                                            <div className={`flex items-center gap-1.5 text-[10px] font-black ${item.stats.vsBest.isPB ? 'text-brand-orange' : 'text-slate-400'}`}>
+                                                <span className={`px-1.5 py-0.5 rounded-[4px] text-[8px] ${item.stats.vsBest.isPB ? 'bg-brand-orange text-white' : 'bg-slate-100 text-slate-400'}`}>PB</span>
+                                                {item.stats.vsBest.isPB ? 'PB ALCANÇADO' : `${item.stats.vsBest.val}% VS MELHOR`}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">{item.label}</span>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className="text-3xl font-black text-brand-slate tracking-tighter">{item.value}</span>
+                                        <span className="text-xs font-bold text-slate-300 uppercase">{item.unit}</span>
+                                    </div>
+                                </div>
                             </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Peso Corporal</span>
-                            <span className="text-2xl font-black text-brand-slate tracking-tighter">{stats.latest.weight}kg</span>
-                        </div>
-                        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-500"><Zap size={20} /></div>
-                                <span className={`text-[10px] font-black flex items-center gap-0.5 ${stats.diffs.jump.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                    {stats.diffs.jump.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {stats.diffs.jump.pct}%
-                                </span>
-                            </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Salto Vertical</span>
-                            <span className="text-2xl font-black text-brand-slate tracking-tighter">{stats.latest.jumpHeight}cm</span>
-                        </div>
-                        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500"><Target size={20} /></div>
-                                <span className={`text-[10px] font-black flex items-center gap-0.5 ${stats.diffs.throw.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                    {stats.diffs.throw.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {stats.diffs.throw.pct}%
-                                </span>
-                            </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Arremesso</span>
-                            <span className="text-2xl font-black text-brand-slate tracking-tighter">{stats.latest.throwDistance}m</span>
-                        </div>
-                        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-4">
-                                <div className="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center text-pink-500"><Heart size={20} /></div>
-                                <span className={`text-[10px] font-black flex items-center gap-0.5 ${stats.diffs.wellness.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                    {stats.diffs.wellness.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />} {stats.diffs.wellness.pct}%
-                                </span>
-                            </div>
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Bem-estar (Média)</span>
-                            <span className="text-2xl font-black text-brand-slate tracking-tighter">{stats.latest.wellnessScore?.toFixed(1)}/10</span>
-                        </div>
+                        ))}
                     </div>
 
                     {/* Charts Grid */}
@@ -351,14 +470,65 @@ export default function AnalyticsPage() {
                                                     <span className="font-bold text-slate-700 text-sm">{entry.date}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-5"><span className="font-black text-brand-slate text-sm">{entry.weight}<span className="text-[10px] text-slate-300 ml-0.5">kg</span></span></td>
-                                            <td className="px-6 py-5"><span className="font-black text-brand-slate text-sm">{entry.jumpHeight}<span className="text-[10px] text-slate-300 ml-0.5">cm</span></span></td>
-                                            <td className="px-6 py-5"><span className="font-black text-brand-slate text-sm">{entry.throwDistance}<span className="text-[10px] text-slate-300 ml-0.5">m</span></span></td>
+                                            {(() => {
+                                                // Calculate evolution and PB for each metric in this row
+                                                const historyArr = stats.history;
+                                                const currentIdx = historyArr.length - 1 - idx; // since we reversed
+                                                const prevEntry = currentIdx > 0 ? historyArr[currentIdx - 1] : null;
+
+                                                const calcEvoPb = (current: number | undefined, prev: number | undefined, allVals: (number | undefined)[]) => {
+                                                    const curr = current || 0;
+                                                    const prevVal = prev || 0;
+                                                    const valid = allVals.filter(v => v && v > 0) as number[];
+                                                    const best = valid.length > 0 ? Math.max(...valid) : 0;
+
+                                                    const hasEvo = prevVal > 0 && curr > 0;
+                                                    const evo = hasEvo ? ((curr - prevVal) / prevVal) * 100 : 0;
+                                                    const isPB = curr > 0 && curr >= best;
+                                                    const vsBest = !isPB && best > 0 && curr > 0 ? ((curr - best) / best) * 100 : 0;
+
+                                                    return { evo, isPB, vsBest, hasEvo, hasBest: !isPB && best > 0 && curr > 0 };
+                                                };
+
+                                                const weightStats = calcEvoPb(entry.weight, prevEntry?.weight, historyArr.map(h => h.weight));
+                                                const jumpStats = calcEvoPb(entry.jumpHeight, prevEntry?.jumpHeight, historyArr.map(h => h.jumpHeight));
+                                                const throwStats = calcEvoPb(entry.throwDistance, prevEntry?.throwDistance, historyArr.map(h => h.throwDistance));
+
+                                                const renderMetricCell = (val: number | undefined, unit: string, metricStats: typeof weightStats) => (
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-black text-brand-slate text-sm">
+                                                            {val || '-'}<span className="text-[10px] text-slate-300 ml-0.5">{unit}</span>
+                                                        </span>
+                                                        {val && val > 0 && (
+                                                            <div className="flex flex-col">
+                                                                {metricStats.hasEvo && (
+                                                                    <span className={`text-[9px] font-bold ${metricStats.evo >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                        {metricStats.evo >= 0 ? '+' : ''}{metricStats.evo.toFixed(1)}% EVOL.
+                                                                    </span>
+                                                                )}
+                                                                {metricStats.isPB ? (
+                                                                    <span className="text-[9px] font-bold text-brand-orange">PB ALCANÇADO</span>
+                                                                ) : metricStats.hasBest && (
+                                                                    <span className="text-[9px] font-bold text-slate-400">({metricStats.vsBest.toFixed(1)}% PB)</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+
+                                                return (
+                                                    <>
+                                                        <td className="px-6 py-5">{renderMetricCell(entry.weight, 'kg', weightStats)}</td>
+                                                        <td className="px-6 py-5">{renderMetricCell(entry.jumpHeight, 'cm', jumpStats)}</td>
+                                                        <td className="px-6 py-5">{renderMetricCell(entry.throwDistance, 'm', throwStats)}</td>
+                                                    </>
+                                                );
+                                            })()}
                                             <td className="px-6 py-5">
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex items-center gap-2">
                                                         <div className="h-1.5 w-12 bg-slate-100 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-brand-orange" style={{ width: `${(entry.wellnessScore || 0) * 10}%` }} />
+                                                            <div className="h-full bg-gradient-to-r from-rose-400 to-brand-orange" style={{ width: `${(entry.wellnessScore || 0) * 10}%` }} />
                                                         </div>
                                                         <span className="font-black text-brand-slate text-sm">{entry.wellnessScore?.toFixed(1)}</span>
                                                     </div>
@@ -495,7 +665,6 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                     {filteredAthletes.map(athlete => {
                         const stats = getAthleteStats(athlete.id);
-                        if (!stats) return null;
                         const isExpanded = expandedCards[athlete.id] || false;
 
                         return (
@@ -539,65 +708,39 @@ export default function AnalyticsPage() {
                                 <div className="p-8">
                                     {/* Indicators Grid */}
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className={`p-4 rounded-[24px] border flex flex-col justify-between h-28 transition-colors ${selectedTechnical === 'peso' ? 'bg-orange-100 border-orange-200' : 'bg-orange-50/30 border-orange-100/50'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <Weight size={18} className="text-brand-orange" />
-                                                <span className={`text-[9px] font-black flex items-center gap-0.5 ${stats.diffs.weight.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                                    {stats.diffs.weight.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                                                    {stats.diffs.weight.pct}%
-                                                </span>
+                                        {[
+                                            { id: 'peso', label: 'Peso', icon: Weight, color: '#F97316', unit: 'KG', dataKey: 'weight', stats: stats.stats.weight, value: stats.latest.weight },
+                                            { id: 'salto', label: 'Salto', icon: Zap, color: '#10B981', unit: 'CM', dataKey: 'jumpHeight', stats: stats.stats.jump, value: stats.latest.jumpHeight },
+                                            { id: 'arremesso', label: 'Arremesso', icon: Target, color: '#3B82F6', unit: 'M', dataKey: 'throwDistance', stats: stats.stats.throw, value: stats.latest.throwDistance },
+                                            { id: 'bem-estar', label: 'Wellness', icon: Heart, color: '#EC4899', unit: '/10', dataKey: 'wellnessScore', stats: stats.stats.wellness, value: stats.latest.wellnessScore?.toFixed(1) }
+                                        ].map(item => (
+                                            <div
+                                                key={item.id}
+                                                className={`p-5 rounded-[32px] border flex flex-col justify-between transition-all duration-300 ${selectedTechnical === item.id ? 'bg-white border-brand-orange shadow-lg shadow-orange-500/10 scale-[1.02]' : 'bg-slate-50/50 border-slate-100'}`}
+                                            >
+                                                <div>
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">{item.label}</span>
+                                                    <div className="space-y-1">
+                                                        {item.stats.evolution.show && (
+                                                            <div className={`flex items-center gap-1 text-[9px] font-black ${item.stats.evolution.isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                {item.stats.evolution.isPositive ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                                                {item.stats.evolution.val}% EVOLUÇÃO
+                                                            </div>
+                                                        )}
+                                                        {item.stats.vsBest.show && (
+                                                            <div className={`flex items-center gap-1.5 text-[9px] font-black ${item.stats.vsBest.isPB ? 'text-brand-orange' : 'text-slate-400'}`}>
+                                                                <span className={`px-1 py-0.5 rounded-[4px] text-[7px] ${item.stats.vsBest.isPB ? 'bg-brand-orange text-white' : 'bg-slate-200 text-slate-500'}`}>PB</span>
+                                                                {item.stats.vsBest.isPB ? 'PB ALCANÇADO' : `${item.stats.vsBest.val}% VS MELHOR`}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="mt-4 flex items-baseline gap-1">
+                                                    <span className="text-2xl font-black text-brand-slate tracking-tighter" style={{ color: selectedTechnical === item.id ? item.color : undefined }}>{item.value}</span>
+                                                    <span className="text-[10px] font-bold text-slate-300 uppercase">{item.unit}</span>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Peso</span>
-                                                <span className="text-xl font-black text-brand-slate tracking-tighter">{stats.latest.weight}</span>
-                                                <span className="text-[10px] font-bold text-slate-400 ml-1">kg</span>
-                                            </div>
-                                        </div>
-
-                                        <div className={`p-4 rounded-[24px] border flex flex-col justify-between h-28 transition-colors ${selectedTechnical === 'salto' ? 'bg-emerald-100 border-emerald-200' : 'bg-emerald-50/30 border-emerald-100/50'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <Zap size={18} className="text-emerald-500" />
-                                                <span className={`text-[9px] font-black flex items-center gap-0.5 ${stats.diffs.jump.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                                    {stats.diffs.jump.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                                                    {stats.diffs.jump.pct}%
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Salto</span>
-                                                <span className="text-xl font-black text-brand-slate tracking-tighter">{stats.latest.jumpHeight}</span>
-                                                <span className="text-[10px] font-bold text-slate-400 ml-1">cm</span>
-                                            </div>
-                                        </div>
-
-                                        <div className={`p-4 rounded-[24px] border flex flex-col justify-between h-28 transition-colors ${selectedTechnical === 'arremesso' ? 'bg-blue-100 border-blue-200' : 'bg-blue-50/30 border-blue-100/50'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <Target size={18} className="text-blue-500" />
-                                                <span className={`text-[9px] font-black flex items-center gap-0.5 ${stats.diffs.throw.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                                    {stats.diffs.throw.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                                                    {stats.diffs.throw.pct}%
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Arremesso</span>
-                                                <span className="text-xl font-black text-brand-slate tracking-tighter">{stats.latest.throwDistance}</span>
-                                                <span className="text-[10px] font-bold text-slate-400 ml-1">m</span>
-                                            </div>
-                                        </div>
-
-                                        <div className={`p-4 rounded-[24px] border flex flex-col justify-between h-28 transition-colors ${selectedTechnical === 'bem-estar' ? 'bg-pink-100 border-pink-200' : 'bg-pink-50/30 border-pink-100/50'}`}>
-                                            <div className="flex justify-between items-start">
-                                                <Heart size={18} className="text-pink-500" />
-                                                <span className={`text-[9px] font-black flex items-center gap-0.5 ${stats.diffs.wellness.isPositive ? 'text-brand-success' : 'text-brand-error'}`}>
-                                                    {stats.diffs.wellness.isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                                                    {stats.diffs.wellness.pct}%
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Wellness</span>
-                                                <span className="text-xl font-black text-brand-slate tracking-tighter">{stats.latest.wellnessScore?.toFixed(1)}</span>
-                                                <span className="text-[10px] font-bold text-slate-400 ml-1">/10</span>
-                                            </div>
-                                        </div>
+                                        ))}
                                     </div>
 
                                     {/* Collapsible Section: Charts */}
@@ -629,27 +772,59 @@ export default function AnalyticsPage() {
 
     const renderEditEntryModal = () => {
         if (!editingEntry) return null;
-        const athlete = MOCK_ATHLETES.find(a => a.id === editingEntry.athleteId);
+        const athlete = athletes.find(a => a.id === editingEntry.athleteId);
 
-        const handleSaveEdit = () => {
-            const data = regData[editingEntry.athleteId];
-            const entry: AssessmentData = {
-                athleteId: editingEntry.athleteId,
-                date: editingEntry.date,
-                weight: parseFloat(data.weight),
-                jumpHeight: parseFloat(data.jumpHeight),
-                throwDistance: parseFloat(data.throwDistance),
-                wellnessScore: (parseInt(data.sleep) + parseInt(data.fatigue) + parseInt(data.pain) + parseInt(data.stress)) / 4,
-                wellnessDetails: {
-                    sleep: parseInt(data.sleep),
-                    fatigue: parseInt(data.fatigue),
-                    pain: parseInt(data.pain),
-                    stress: parseInt(data.stress)
+        const handleSaveEdit = async () => {
+            try {
+                const data = regData[editingEntry.athleteId];
+                const existingEntry = history.find(h => h.athleteId === editingEntry.athleteId && h.date === editingEntry.date);
+                if (!existingEntry) return;
+
+                const updatePromises = [];
+
+                // Update Assessment if either it existed or new values were provided
+                const assessmentData = {
+                    date: editingEntry.date,
+                    weight: parseFloat(data.weight) || 0,
+                    jumpHeight: parseFloat(data.jumpHeight) || 0,
+                    throwDistance: parseFloat(data.throwDistance) || 0,
+                };
+
+                if (existingEntry.id) {
+                    updatePromises.push(analyticsService.updateAssessment(existingEntry.id, assessmentData));
+                } else if (assessmentData.weight || assessmentData.jumpHeight || assessmentData.throwDistance) {
+                    // If it didn't exist but we added some data, maybe we should create it?
+                    // For now let's assume update only if existed, or use bulk create for one item.
+                    updatePromises.push(analyticsService.createAssessmentsBulk([{ ...assessmentData, athleteId: editingEntry.athleteId }]));
                 }
-            };
 
-            setHistory(prev => prev.map(h => (h.athleteId === entry.athleteId && h.date === entry.date) ? entry : h));
-            setEditingEntry(null);
+                // Update Wellness
+                const wellnessData = {
+                    date: editingEntry.date,
+                    wellnessDetails: {
+                        sleep: parseInt(data.sleep) || 5,
+                        fatigue: parseInt(data.fatigue) || 5,
+                        pain: parseInt(data.pain) || 5,
+                        stress: parseInt(data.stress) || 5
+                    }
+                };
+
+                if (existingEntry.wellnessId) {
+                    updatePromises.push(analyticsService.updateWellness(existingEntry.wellnessId, wellnessData));
+                } else {
+                    updatePromises.push(analyticsService.createWellnessBulk([{ ...wellnessData, athleteId: editingEntry.athleteId }]));
+                }
+
+                await Promise.all(updatePromises);
+
+                // Reload data
+                await loadData();
+
+                setEditingEntry(null);
+            } catch (error) {
+                console.error("Failed to update entry", error);
+                alert("Erro ao atualizar registro");
+            }
         };
 
         return (
@@ -798,7 +973,7 @@ export default function AnalyticsPage() {
                                             </div>
                                             {regAthleteSearch && (
                                                 <div className="absolute z-10 w-full md:w-[350px] mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto p-2">
-                                                    {MOCK_ATHLETES.filter(a => a.name.toLowerCase().includes(regAthleteSearch.toLowerCase())).map(a => (
+                                                    {athletes.filter(a => a.name.toLowerCase().includes(regAthleteSearch.toLowerCase())).map(a => (
                                                         <button
                                                             key={a.id}
                                                             onClick={() => {
@@ -816,7 +991,7 @@ export default function AnalyticsPage() {
                                             )}
                                             <div className="flex flex-wrap gap-2 mt-4">
                                                 {regSelectedAthleteIds.map(id => {
-                                                    const a = MOCK_ATHLETES.find(m => m.id === id);
+                                                    const a = athletes.find(m => m.id === id);
                                                     return (
                                                         <div key={id} className="flex items-center gap-2 px-4 py-2 bg-orange-50 text-brand-orange rounded-xl text-xs font-black">
                                                             {a?.name}
@@ -831,7 +1006,7 @@ export default function AnalyticsPage() {
                                     {regSelectedAthleteIds.length > 0 && (
                                         <div className="space-y-6 border-t border-slate-100 pt-8">
                                             {regSelectedAthleteIds.map(id => {
-                                                const a = MOCK_ATHLETES.find(m => m.id === id);
+                                                const a = athletes.find(m => m.id === id);
                                                 return (
                                                     <div key={id} className="bg-slate-50 p-6 rounded-[32px] border border-slate-100">
                                                         <h4 className="text-sm font-black text-brand-slate mb-6 flex items-center gap-2"><User size={16} className="text-brand-orange" /> {a?.name}</h4>

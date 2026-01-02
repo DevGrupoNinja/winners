@@ -16,5 +16,6 @@ from .gym import (
     GymSession, GymSessionCreate, GymFeedback, GymFeedbackCreate
 )
 from .analytics import (
-    Assessment, AssessmentCreate, Wellness, WellnessCreate
+    Assessment, AssessmentCreate, AssessmentUpdate, AssessmentBulkCreate,
+    Wellness, WellnessCreate, WellnessUpdate, WellnessBulkCreate
 )

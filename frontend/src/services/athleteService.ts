@@ -3,7 +3,7 @@ import { Athlete } from '@/types';
 
 // Helper to map Backend (snake_case) to Frontend (camelCase)
 const mapAthlete = (data: any): Athlete => ({
-    id: data.id,
+    id: data.id.toString(),
     firstName: data.first_name,
     lastName: data.last_name,
     name: `${data.first_name} ${data.last_name}`,

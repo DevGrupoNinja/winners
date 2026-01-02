@@ -22,6 +22,18 @@ class Assessment(AssessmentBase):
     class Config:
         from_attributes = True
 
+class AssessmentUpdate(BaseModel):
+    date: Optional[date] = None
+    weight: Optional[float] = None
+    height: Optional[float] = None
+    jump_height: Optional[float] = None
+    throw_distance: Optional[float] = None
+    additional_metrics: Optional[Dict[str, Any]] = None
+    observation: Optional[str] = None
+
+class AssessmentBulkCreate(BaseModel):
+    assessments: List[AssessmentCreate]
+
 # --- Wellness ---
 
 class WellnessBase(BaseModel):
@@ -41,3 +53,14 @@ class Wellness(WellnessBase):
     overall_score: Optional[float] = None
     class Config:
         from_attributes = True
+
+class WellnessUpdate(BaseModel):
+    date: Optional[date] = None
+    sleep_quality: Optional[int] = None
+    fatigue_level: Optional[int] = None
+    muscle_soreness: Optional[int] = None
+    stress_level: Optional[int] = None
+    notes: Optional[str] = None
+
+class WellnessBulkCreate(BaseModel):
+    wellness_records: List[WellnessCreate]

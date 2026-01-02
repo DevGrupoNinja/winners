@@ -241,12 +241,15 @@ export interface Competition {
 }
 
 export interface AssessmentData {
+  id?: number;
   athleteId: string;
   date: string;
   weight?: number;
   jumpHeight?: number;
   throwDistance?: number;
+  observation?: string;
   wellnessScore?: number;
+  wellnessId?: number;
   wellnessDetails?: {
     sleep: number;
     fatigue: number;
