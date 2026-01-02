@@ -28,6 +28,7 @@ class TrainingSubdivisionBase(BaseModel):
     pause_time: str | None = None
     da_re: float | None = None
     da_er: float | None = None
+    functional_base: str | None = None
     observation: str | None = None
 
 class TrainingSubdivisionCreate(TrainingSubdivisionBase):
@@ -45,6 +46,7 @@ class TrainingSeriesBase(BaseModel):
     name: str
     reps: str
     rpe_target: float | None = None
+    rpe_description: str | None = None
     instructions: str | None = None
     total_distance: float = 0.0
 
@@ -81,10 +83,13 @@ class TrainingSessionUpdate(BaseModel):
     status: str | None = None
     description: str | None = None
     total_volume: float | None = None
+    series: list["TrainingSeriesCreate"] | None = None
 
 class TrainingSession(TrainingSessionBase):
     id: int
+    parent_session_id: int | None = None
     series: list["TrainingSeries"] = []
+    feedbacks: list["SessionFeedback"] = []
     class Config:
         from_attributes = True
 

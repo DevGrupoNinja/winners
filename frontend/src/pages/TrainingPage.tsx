@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Play, Copy, Edit2, Plus, Clock, Droplets, ArrowLeft, Check, Users, Trash2, Eye, Filter, X, Sliders, Layers, Calculator, GripVertical, AlertCircle, Calendar, Tag, BarChart3, Search, ChevronLeft, ChevronRight, History, CheckCircle2, List, AlertTriangle, UserPlus, ChartBar, UserCheck, Save, ArrowRight, ChevronDown, ChevronUp, Activity, Target } from 'lucide-react';
+import { Calendar, Clock, Plus, Filter, Users, ChevronDown, CheckCircle2, History, Play, StopCircle, ArrowLeft, Droplets, Trash2, Edit2, AlertTriangle, X, Check, Save, Copy, User, ChevronUp, AlertCircle, List, Eye, ChevronLeft, UserPlus, ChevronRight, Search, ChartBar, Layers } from 'lucide-react';
 import { trainingService } from '@/services/trainingService';
 import { athleteService } from '@/services/athleteService';
 import { Workout, WorkoutBlock, WorkoutSubdivision, WorkoutSession, SessionEvaluation, Athlete } from '@/types';
@@ -33,7 +33,88 @@ const calculateBlockStats = (subdivisions: WorkoutSubdivision[]) => {
     return { volume: totalVolume, ddr: ddrVolume, dcr: dcrVolume };
 };
 
+// --- Reusable Component: SessionEvaluationDrawer ---
+
+interface SessionEvaluationDrawerProps {
+    block: WorkoutBlock;
+    presentAthletes: Athlete[];
+    initialEvaluations: SessionEvaluation[];
+    onSave: (evals: SessionEvaluation[]) => void;
+    onClose: () => void;
+}
+
+const SessionEvaluationDrawer = ({ block, presentAthletes, initialEvaluations, onSave, onClose }: SessionEvaluationDrawerProps) => {
+    const [checkedAthletes, setCheckedAthletes] = useState<Record<string, boolean>>(() => {
+        const initial: Record<string, boolean> = {};
+        initialEvaluations.forEach(e => initial[e.athleteId] = true);
+        return initial;
+    });
+
+    const [localEvals, setLocalEvals] = useState<Record<string, { rpe: number, exhaustion: number, times: string }>>(() => {
+        const initial: Record<string, { rpe: number, exhaustion: number, times: string }> = {};
+        initialEvaluations.forEach(e => { initial[e.athleteId] = { rpe: e.rpe, exhaustion: e.exhaustion, times: e.times || '' }; });
+        return initial;
+    });
+
+    const handleSaveClick = () => {
+        const evalList: SessionEvaluation[] = Object.entries(checkedAthletes).filter(([_, checked]) => checked).map(([athleteId, _]) => ({
+            athleteId,
+            athleteName: presentAthletes.find(a => a.id === athleteId)?.name || 'Atleta',
+            rpe: localEvals[athleteId]?.rpe || 5,
+            exhaustion: localEvals[athleteId]?.exhaustion || 5,
+            times: localEvals[athleteId]?.times || ''
+        }));
+        onSave(evalList);
+    };
+
+    return (
+        <div className="bg-white w-full max-w-2xl h-[90%] rounded-t-3xl shadow-2xl p-6 flex flex-col animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+                <div>
+                    <h3 className="text-xl font-bold text-brand-slate">Avaliar série: {block.exerciseName}</h3>
+                    <p className="text-sm text-gray-500">Marque o atleta para liberar os controles de percepção.</p>
+                </div>
+                <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 space-y-3 pr-2 pb-6">
+                {presentAthletes.map(athlete => {
+                    const isChecked = checkedAthletes[athlete.id];
+                    const val = localEvals[athlete.id] || { rpe: 5, exhaustion: 5, times: '' };
+                    return (
+                        <div key={athlete.id} className={`border rounded-xl overflow-hidden transition-all ${isChecked ? 'border-brand-orange ring-1 ring-brand-orange/10' : 'border-gray-200 bg-white'}`}>
+                            <div className={`flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 ${isChecked ? 'bg-orange-50/50' : ''}`} onClick={() => { setCheckedAthletes(p => ({ ...p, [athlete.id]: !p[athlete.id] })); if (!localEvals[athlete.id]) setLocalEvals(p => ({ ...p, [athlete.id]: { rpe: 5, exhaustion: 5, times: '' } })); }}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isChecked ? 'bg-brand-orange border-brand-orange text-white' : 'border-gray-300 bg-white'}`}>{isChecked && <Check size={12} strokeWidth={4} />}</div>
+                                <div className="flex flex-col"><span className="font-bold text-slate-700">{athlete.name}</span><span className="text-[10px] font-bold text-gray-400 uppercase">{athlete.category}</span></div>
+                            </div>
+                            {isChecked && (
+                                <div className="p-4 bg-white border-t border-orange-100 space-y-6 animate-in fade-in">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase mb-2"><span>RPE</span><span className="text-brand-orange">{val.rpe}/10</span></div><input type="range" min="0" max="10" value={val.rpe} onChange={e => setLocalEvals(p => ({ ...p, [athlete.id]: { ...val, rpe: parseInt(e.target.value) } }))} className="w-full accent-brand-orange" /></div>
+                                        <div><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase mb-2"><span>Exaustão</span><span className="text-red-500">{val.exhaustion}/10</span></div><input type="range" min="0" max="10" value={val.exhaustion} onChange={e => setLocalEvals(p => ({ ...p, [athlete.id]: { ...val, exhaustion: parseInt(e.target.value) } }))} className="w-full accent-red-500" /></div>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Tempos alcançados (Opcional)</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: 31.5, 32.1, 31.8..."
+                                            value={val.times}
+                                            onChange={e => setLocalEvals(p => ({ ...p, [athlete.id]: { ...val, times: e.target.value } }))}
+                                            className="w-full p-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-brand-orange outline-none transition-colors font-mono"
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="pt-4 border-t border-gray-100"><button onClick={handleSaveClick} className="w-full bg-brand-slate text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2"><CheckCircle2 size={18} /> Salvar avaliações</button></div>
+        </div>
+    );
+};
+
 // --- Reusable Component: AddSeriesModal ---
+
 
 const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number, onSave: (b: WorkoutBlock) => void, onClose: () => void, initialData?: WorkoutBlock }) => {
     const [exName, setExName] = useState(initialData?.exerciseName || '');
@@ -159,7 +240,9 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
                                 </div>
                             </div>
                             <div className="flex gap-8 items-center bg-brand-slate/5 p-4 rounded-2xl border border-brand-slate/10">
-                                <div className="flex flex-col"><span className="text-[10px] font-black text-gray-400 uppercase">Volume</span><span className="text-2xl font-black text-slate-800">{stats.volume}m</span></div>
+                                <div className="flex flex-col"><span className="text-[10px] font-black text-gray-400 uppercase">Planejado</span><span className="text-2xl font-black text-slate-800">{parseInt(reps || '0') * parseInt(dist || '0')}m</span></div>
+                                <div className="w-px h-10 bg-gray-200"></div>
+                                <div className="flex flex-col"><span className="text-[10px] font-black text-gray-400 uppercase">Volume</span><span className={`text-2xl font-black ${stats.volume === parseInt(reps || '0') * parseInt(dist || '0') ? 'text-emerald-600' : 'text-red-500'}`}>{stats.volume}m</span></div>
                                 <div className="w-px h-10 bg-gray-200"></div>
                                 <div className="flex flex-col"><span className="text-[10px] font-black text-emerald-400 uppercase">DDR</span><span className="text-2xl font-black text-emerald-600">{stats.ddr}m</span></div>
                                 <div className="w-px h-10 bg-gray-200"></div>
@@ -205,9 +288,17 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
                         </div>
                     </div>
                 </div>
-                <div className="p-6 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
-                    <button onClick={onClose} className="px-6 py-4 text-gray-500 font-bold">Cancelar</button>
-                    <button onClick={handleFinalSave} disabled={subdivisions.length === 0} className="px-10 py-4 bg-brand-orange text-white rounded-2xl font-black uppercase text-sm disabled:bg-gray-200">Concluir</button>
+                <div className="p-6 border-t border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onClose} className="px-6 py-4 text-gray-500 font-bold">Cancelar</button>
+                        {stats.volume !== parseInt(reps || '0') * parseInt(dist || '0') && subdivisions.length > 0 && (
+                            <span className="text-red-500 text-sm font-bold flex items-center gap-2">
+                                <AlertCircle size={16} />
+                                Volume ({stats.volume}m) ≠ Planejado ({parseInt(reps || '0') * parseInt(dist || '0')}m)
+                            </span>
+                        )}
+                    </div>
+                    <button onClick={handleFinalSave} disabled={subdivisions.length === 0 || stats.volume !== parseInt(reps || '0') * parseInt(dist || '0')} className="px-10 py-4 bg-brand-orange text-white rounded-2xl font-black uppercase text-sm disabled:bg-gray-200 disabled:cursor-not-allowed">Concluir</button>
                 </div>
             </div>
         </div>
@@ -266,18 +357,28 @@ export default function TrainingPage() {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
+    const [historyCategory, setHistoryCategory] = useState<string>('Todos');
+    const [historyProfile, setHistoryProfile] = useState<string>('Todos');
+    const [historyStartDate, setHistoryStartDate] = useState('');
+    const [historyEndDate, setHistoryEndDate] = useState('');
+
     const [showStartModal, setShowStartModal] = useState(false);
     const [startWorkoutRef, setStartWorkoutRef] = useState<Workout | null>(null);
     const [sessionStartTime, setSessionStartTime] = useState('');
     const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+    const [expandedBlockId, setExpandedBlockId] = useState<string | null>(null);
 
     // Builder States
     const [builderId, setBuilderId] = useState<string | null>(null);
     const [builderTitle, setBuilderTitle] = useState('');
     const [builderDate, setBuilderDate] = useState(new Date().toISOString().split('T')[0]);
+    const [builderTime, setBuilderTime] = useState('00:00');
     const [builderProfile, setBuilderProfile] = useState<'Fundo' | 'Velocidade' | 'Meio Fundo' | 'Técnica'>('Fundo');
     const [builderCategory, setBuilderCategory] = useState('Geral');
     const [builderBlocks, setBuilderBlocks] = useState<WorkoutBlock[]>([]);
+
+    // Details Tab State
+    const [detailsTab, setDetailsTab] = useState<'TECHNICAL' | 'HISTORY'>('TECHNICAL');
 
     const handleCreateNew = () => {
         setBuilderId(null);
@@ -302,11 +403,17 @@ export default function TrainingPage() {
         setShowDeleteConfirm(true);
     };
 
-    const confirmDeleteWorkout = () => {
+    const confirmDeleteWorkout = async () => {
         if (workoutToDelete) {
-            setWorkouts(workouts.filter(w => w.id !== workoutToDelete));
-            setWorkoutToDelete(null);
-            setShowDeleteConfirm(false);
+            try {
+                await trainingService.delete(workoutToDelete);
+                setWorkouts(workouts.filter(w => w.id !== workoutToDelete));
+                setWorkoutToDelete(null);
+                setShowDeleteConfirm(false);
+            } catch (error) {
+                console.error("Error deleting workout:", error);
+                alert("Erro ao excluir treino.");
+            }
         }
     };
 
@@ -319,7 +426,8 @@ export default function TrainingPage() {
                     date: builderDate,
                     profile: builderProfile,
                     category: builderCategory,
-                    status: 'Planned', // Or preserve existing status
+                    status: 'Planned',
+                    blocks: builderBlocks // Sending blocks to update series
                 });
                 setWorkouts(workouts.map(w => w.id === builderId ? updatedWorkout : w));
             } else {
@@ -331,6 +439,8 @@ export default function TrainingPage() {
                     category: builderCategory,
                     blocks: builderBlocks
                 });
+                // Check if it was a duplication (we can assume yes if we are in builder mode but it's new)
+                // Actually simple append is enough
                 setWorkouts([newWorkout, ...workouts]);
             }
             setViewMode('LIST');
@@ -338,6 +448,23 @@ export default function TrainingPage() {
             console.error(error);
             alert("Erro ao salvar treino");
         }
+    };
+
+    const handleDuplicateWorkout = (workout: Workout) => {
+        setBuilderTitle(`${workout.title} (Cópia)`);
+        setBuilderDate(new Date().toISOString().split('T')[0]);
+        setBuilderTime(workout.time);
+        setBuilderProfile(workout.profile);
+        setBuilderCategory(workout.category);
+        // Deep copy of blocks with new IDs to avoid reference issues
+        const newBlocks = workout.blocks.map(b => ({
+            ...b,
+            id: Date.now().toString() + Math.random().toString(),
+            subdivisions: b.subdivisions.map(s => ({ ...s, id: Date.now().toString() + Math.random().toString() }))
+        }));
+        setBuilderBlocks(newBlocks);
+        setBuilderId(null); // Ensure it saves as new
+        setViewMode('BUILDER');
     };
 
     const handleStartRequest = (workout: Workout) => {
@@ -374,9 +501,15 @@ export default function TrainingPage() {
         }
     };
 
-    const handleAddSeriesToView = (newBlock: WorkoutBlock) => {
-        if (viewMode === 'LIVE') {
-            setLiveWorkout(prev => prev ? { ...prev, blocks: [...prev.blocks, newBlock] } : null);
+    const handleAddSeriesToView = async (newBlock: WorkoutBlock) => {
+        if (viewMode === 'LIVE' && liveWorkout) {
+            try {
+                await trainingService.addSeries(liveWorkout.id, newBlock);
+                setLiveWorkout(prev => prev ? { ...prev, blocks: [...prev.blocks, newBlock] } : null);
+            } catch (err) {
+                console.error("Error adding series:", err);
+                alert("Erro ao adicionar série.");
+            }
         } else if (viewMode === 'BUILDER') {
             setBuilderBlocks(prev => {
                 const exists = prev.find(b => b.id === newBlock.id);
@@ -400,22 +533,47 @@ export default function TrainingPage() {
         if (!liveWorkout) return;
 
         try {
-            // Ideally backend would have a specific endpoint to finish a session.
-            // For now, we update the status to 'Completed'.
-            // In a real scenario, we would also POST the session executions/feedbacks.
-            // Since our backend service 'update' is simple, let's just mark it completed.
-            await trainingService.update(liveWorkout.id, { status: 'Completed' });
+            // Save feedbacks for present athletes
+            const presentAthleteIds = Object.keys(attendance).filter(id => attendance[id]);
 
-            // Reload to reflect changes (history relies on status='Completed' logic or separate history endpoint)
-            // But wait, our 'renderListView' still looks at w.history. 
-            // If backend doesn't populate 'history' inside the workout object, we rely on 'Completed' workouts acting as history.
-            // Let's reload everything.
-            const [workoutsData] = await Promise.all([trainingService.getAll()]);
-            setWorkouts(workoutsData);
+            // Loop through present athletes and save their feedback
+            await Promise.all(presentAthleteIds.map(async (athleteId) => {
+                // Find if there is any evaluation for this athlete in any block
+                // We aggregate: take the first non-empty evaluation found, or default
+                let rpe = null;
+                let exhaustion = null;
+                let notes = '';
+
+                // Search in sessionEvaluations
+                for (const blockId in sessionEvaluations) {
+                    const evals = sessionEvaluations[blockId];
+                    const athleteEval = evals.find(e => e.athleteId === athleteId);
+                    if (athleteEval) {
+                        rpe = athleteEval.rpe;
+                        exhaustion = athleteEval.exhaustion;
+                        break; // Found one, use it (Backend limitation: 1 feedback per session)
+                    }
+                }
+
+                await trainingService.createFeedback(liveWorkout.id, {
+                    session_id: parseInt(liveWorkout.id),
+                    athlete_id: parseInt(athleteId),
+                    rpe_real: rpe,
+                    exhaustion_level: exhaustion ? exhaustion.toString() : null,
+                    notes: notes,
+                    attendance: 'Present'
+                });
+            }));
+
+            await trainingService.update(liveWorkout.id, { status: 'Completed' });
 
             setShowFinishConfirm(false);
             setShowSuccessFeedback(true);
-            setTimeout(() => {
+            setTimeout(async () => {
+                // Reload only after success feedback, ensuring data is committed
+                const workoutsData = await trainingService.getAll();
+                setWorkouts(workoutsData);
+
                 setShowSuccessFeedback(false);
                 setLiveWorkout(null);
                 setViewMode('LIST');
@@ -429,9 +587,66 @@ export default function TrainingPage() {
 
     // --- Render Functions to fix focus bug ---
 
+    const allHistory = useMemo(() => {
+        return workouts
+            .filter(w => {
+                if (w.status !== 'Completed') return false;
+
+                const matchesCategory = historyCategory === 'Todos' || w.category === historyCategory;
+                const matchesProfile = historyProfile === 'Todos' || w.profile === historyProfile;
+                const matchesStart = !historyStartDate || w.date >= historyStartDate;
+                const matchesEnd = !historyEndDate || w.date <= historyEndDate;
+
+                return matchesCategory && matchesProfile && matchesStart && matchesEnd;
+            })
+            .map(w => {
+                // Map feedbacks to attendees and evaluations
+                const attendees = w.feedbacks
+                    ? w.feedbacks.filter(f => f.attendance === 'Present').map(f => f.athlete_id.toString())
+                    : [];
+
+                const blockEvaluations: Record<string, SessionEvaluation[]> = {};
+                // Feedbacks are session-level, not block-level. Map to all blocks.
+                if (w.feedbacks && w.blocks) {
+                    w.blocks.forEach(block => {
+                        blockEvaluations[block.id] = w.feedbacks!
+                            .filter(f => f.attendance === 'Present' && f.rpe_real !== null)
+                            .map(f => ({
+                                athleteId: f.athlete_id.toString(),
+                                athleteName: athletes.find(a => String(a.id) === String(f.athlete_id))?.name || 'Atleta',
+                                rpe: f.rpe_real || 0,
+                                exhaustion: parseFloat(f.exhaustion_level || '0'),
+                                times: ''
+                            }));
+                    });
+                }
+
+                // Calculate Adherence
+                const potentialAthletes = athletes.filter(a =>
+                    a.status === 'Active' &&
+                    (w.category === 'Geral' || w.category === 'Todos' || a.category === w.category)
+                );
+                const adherence = potentialAthletes.length > 0
+                    ? Math.round((attendees.length / potentialAthletes.length) * 100)
+                    : 0;
+
+                return {
+                    id: w.id,
+                    date: w.date,
+                    startTime: w.time,
+                    endTime: w.time,
+                    attendanceCount: attendees.length,
+                    attendees: attendees,
+                    blockEvaluations: blockEvaluations,
+                    adherence: adherence,
+                    workout: w
+                };
+            }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [workouts, historyCategory, historyProfile, historyStartDate, historyEndDate, athletes]);
+
     const renderListView = () => {
         const filteredWorkouts = workouts.filter(w => {
-            if (w.status !== 'Planned') return false; // Show only Plans
+            if (w.status !== 'Planned') return false;
             const matchesCategory = filterCategory === 'Todos' || w.category === filterCategory;
             const matchesProfile = filterProfile === 'Todos' || w.profile === filterProfile;
             const matchesStart = !startDate || w.date >= startDate;
@@ -439,19 +654,6 @@ export default function TrainingPage() {
             return matchesCategory && matchesProfile && matchesStart && matchesEnd;
         });
 
-        // Use 'Completed' workouts as history directly, assuming backend returns them as such.
-        // Or if backend returns a list of sessions, map them here.
-        // Current logic: workouts.filter(w => w.status === 'Completed')
-        const allHistory = workouts.filter(w => w.status === 'Completed').map(w => ({
-            id: w.id,
-            date: w.date,
-            startTime: w.time,
-            endTime: w.time, // Should be real end time if backend stored it
-            attendanceCount: 0, // Backend needs to populate this
-            attendees: [],
-            blockEvaluations: {},
-            workout: w
-        })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
         return (
             <div className="space-y-6 animate-in fade-in relative">
@@ -519,6 +721,7 @@ export default function TrainingPage() {
                                             <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><Calendar size={12} /> {w.date}</p>
                                         </div>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={() => handleDuplicateWorkout(w)} className="p-2 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded-lg transition-colors" title="Duplicar"><Copy size={16} /></button>
                                             <button onClick={() => handleEditWorkout(w)} className="p-2 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
                                             <button onClick={() => handleDeleteRequest(w.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
                                         </div>
@@ -538,61 +741,181 @@ export default function TrainingPage() {
                 )}
 
                 {mainTab === 'HISTORY' && (
-                    <div className="space-y-4 animate-in fade-in">
-                        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                            <div className="bg-gray-50/50 p-6 border-b border-gray-100 flex justify-between items-center">
-                                <div><h3 className="text-lg font-bold text-brand-slate">Relatório de sessões realizadas</h3><p className="text-xs text-gray-500">Visão detalhada de execuções passadas.</p></div>
-                                <div className="bg-white px-3 py-1.5 rounded-lg border border-gray-200 flex items-center gap-2 text-xs font-bold text-gray-600 shadow-sm"><Activity size={14} className="text-brand-orange" /> {allHistory.length} Treinos</div>
+                    <div className="space-y-6 animate-in fade-in">
+                        {/* History Filters */}
+                        <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-6">
+                            <div className="flex flex-col md:flex-row md:items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Período:</span>
+                                    <input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
+                                    <span className="text-gray-300 font-bold">-</span>
+                                    <input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
+                                </div>
+                                <div className="flex items-center gap-2 overflow-x-auto">
+                                    <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Categoria:</span>
+                                    {['Todos', 'Geral', 'Infantil', 'Petiz'].map(c => (
+                                        <FilterChip key={c} label={c} active={historyCategory === c} onClick={() => setHistoryCategory(c)} />
+                                    ))}
+                                </div>
                             </div>
-                            <div className="divide-y divide-gray-100">
-                                {allHistory.map((session) => {
-                                    const isExpanded = expandedHistoryId === session.id;
-                                    return (
-                                        <div key={session.id} className={`${isExpanded ? 'bg-orange-50/10' : 'hover:bg-gray-50/30'}`}>
-                                            <div onClick={() => setExpandedHistoryId(isExpanded ? null : session.id)} className="p-4 cursor-pointer flex items-center justify-between">
-                                                <div className="flex items-center gap-4"><div className="bg-white p-2 rounded-xl border border-gray-200"><Calendar size={18} className="text-brand-orange" /></div><div><h4 className="font-bold text-slate-800">{session.workout.title}</h4><div className="flex gap-3 text-xs text-gray-400"><span>{session.date}</span><span>•</span><span className="font-mono">{session.startTime} - {session.endTime}</span></div></div></div>
-                                                <div className="flex items-center gap-6"><div className="text-right"><div className="text-sm font-black text-brand-slate">{session.attendanceCount}</div><div className="text-[10px] font-bold text-gray-400 uppercase">Presenças</div></div><ChevronDown size={18} className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`} /></div>
+                            <div className="flex items-center gap-2 overflow-x-auto">
+                                <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Perfil do Treino:</span>
+                                {['Todos', 'Velocidade', 'Fundo', 'Meio Fundo', 'Técnica'].map(p => (
+                                    <FilterChip key={p} label={p} active={historyProfile === p} onClick={() => setHistoryProfile(p)} />
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sessões finalizadas ({allHistory.length})</span>
+                        </div>
+
+                        <div className="space-y-4">
+                            {allHistory.map((session) => {
+                                const isExpanded = expandedHistoryId === session.id;
+                                const sessionDate = new Date(session.date);
+                                const day = sessionDate.getDate().toString().padStart(2, '0');
+                                const month = (sessionDate.getMonth() + 1).toString().padStart(2, '0');
+
+                                return (
+                                    <div key={session.id} className={`bg-white rounded-[32px] border transition-all duration-300 ${isExpanded ? 'border-brand-orange shadow-lg ring-4 ring-brand-orange/5' : 'border-gray-200 shadow-sm hover:shadow-md'}`}>
+                                        {/* Card Content - Compact */}
+                                        <div
+                                            onClick={() => setExpandedHistoryId(isExpanded ? null : session.id)}
+                                            className="p-6 cursor-pointer flex flex-col lg:flex-row items-start lg:items-center gap-6"
+                                        >
+                                            {/* Date Block */}
+                                            <div className="flex flex-col items-center justify-center w-16 h-16 bg-gray-50 rounded-2xl border border-gray-100 shrink-0">
+                                                <span className="text-xl font-black text-gray-400 leading-none">{day}</span>
+                                                <span className="text-xs font-bold text-gray-300">{month}</span>
                                             </div>
-                                            {isExpanded && (
-                                                <div className="p-6 pt-0 border-t border-gray-100 animate-in slide-in-from-top-2">
-                                                    <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                                        <div className="space-y-4">
-                                                            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5"><Layers size={14} className="text-brand-orange" /> Séries executadas</h5>
-                                                            <div className="space-y-3">
-                                                                {session.workout.blocks.map(block => {
-                                                                    const evals = session.blockEvaluations[block.id] || [];
-                                                                    return (
-                                                                        <div key={block.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-                                                                            <div className="flex justify-between items-start border-b border-gray-50 pb-2 mb-2">
-                                                                                <div><span className="text-[9px] font-black text-brand-orange uppercase">Série #{block.order}</span><h6 className="font-bold text-sm text-brand-slate">{block.exerciseName}</h6><span className="text-[10px] font-mono text-gray-400">{block.mainSet}</span></div>
-                                                                                <div className="text-right text-xs font-black text-brand-success">{evals.length} Atletas</div>
-                                                                            </div>
-                                                                            <div className="space-y-1.5">
-                                                                                {evals.map(e => (
-                                                                                    <div key={e.athleteId} className="flex flex-col gap-1 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                                                                        <div className="flex justify-between text-xs"><span className="font-bold text-slate-700">{e.athleteName}</span><div className="flex gap-3"><span className="text-gray-500">RPE: <b className="text-brand-orange">{e.rpe}</b></span><span className="text-gray-500">EXH: <b className="text-red-500">{e.exhaustion}</b></span></div></div>
-                                                                                        {e.times && <div className="text-[10px] text-gray-400 font-mono">Tempos: {e.times}</div>}
-                                                                                    </div>
-                                                                                ))}
+
+                                            {/* Info Block */}
+                                            <div className="flex-1 space-y-2">
+                                                <div className="flex items-center gap-3">
+                                                    <h4 className="text-xl font-black text-brand-slate uppercase tracking-tight">{session.workout.title}</h4>
+                                                    <span className="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-widest">Finalizado</span>
+                                                </div>
+                                                <div className="flex items-center gap-4 text-xs font-bold text-gray-400">
+                                                    <span className="flex items-center gap-1"><Clock size={14} className="text-gray-300" /> {session.startTime}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                    <span className="flex items-center gap-1"><Droplets size={14} className="text-sky-400" /> {session.workout.totalVolume}m Total</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Right Side Actions */}
+                                            <div className="flex items-center gap-6 self-end lg:self-center w-full lg:w-auto justify-between lg:justify-end">
+                                                <div className="text-right">
+                                                    <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Elenco</div>
+                                                    <div className="text-lg font-black text-brand-slate">{session.attendanceCount} Atletas</div>
+                                                </div>
+                                                <button
+                                                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isExpanded ? 'bg-brand-orange text-white rotate-180' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
+                                                >
+                                                    <ChevronDown size={20} strokeWidth={3} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Expanded Content */}
+                                        {isExpanded && (
+                                            <div className="p-8 pt-2 border-t border-gray-100 animate-in slide-in-from-top-4 fade-in duration-300">
+                                                <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 mt-6">
+
+                                                    {/* Left Col: Execution & Performance */}
+                                                    <div className="xl:col-span-8 space-y-6">
+                                                        <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Execução & Performance</h5>
+
+                                                        {session.workout.blocks.map((block, idx) => {
+                                                            const evals = session.blockEvaluations[block.id] || [];
+                                                            return (
+                                                                <div key={block.id} className="bg-white rounded-3xl border border-gray-100 p-6 flex flex-col gap-4 shadow-sm hover:border-gray-200 transition-colors">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div className="space-y-1">
+                                                                            <span className="text-[9px] font-black text-brand-orange uppercase tracking-widest mb-1 block">Série #{block.order}</span>
+                                                                            <h6 className="text-xl font-black text-brand-slate leading-none">{block.exerciseName}</h6>
+                                                                            <div className="flex items-center gap-3 mt-2">
+                                                                                <span className="text-base font-bold text-slate-700">{block.mainSet}</span>
+                                                                                {block.rpe && (
+                                                                                    <span className="text-[10px] font-black uppercase text-gray-400 bg-white border border-gray-200 px-2 py-1 rounded-lg tracking-wide shadow-sm">
+                                                                                        {block.rpe}
+                                                                                    </span>
+                                                                                )}
                                                                             </div>
                                                                         </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-4">
-                                                            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5"><Users size={14} className="text-brand-orange" /> Elenco da sessão</h5>
-                                                            <div className="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-2">
-                                                                {session.attendees.map(id => <div key={id} className="bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-100 text-xs font-bold text-gray-600">{athletes.find(a => a.id === id)?.name}</div>)}
+                                                                        {evals.length > 0 && (
+                                                                            <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 py-1 rounded border border-emerald-100 uppercase tracking-widest">{evals.length} Avaliados</span>
+                                                                        )}
+                                                                    </div>
+
+                                                                    {/* Evaluated Athletes Feedback Grid */}
+                                                                    {evals.length > 0 ? (
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                                                                            {evals.map(ev => (
+                                                                                <div key={ev.athleteId} className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                                                                    <span className="text-xs font-bold text-slate-700">{ev.athleteName}</span>
+                                                                                    <div className="flex gap-2 text-[9px] font-black uppercase">
+                                                                                        <span className="text-gray-400">RPE <b className="text-brand-slate">{ev.rpe}</b></span>
+                                                                                        <span className="text-gray-400">EXH <b className="text-brand-slate">{ev.exhaustion}</b></span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center">
+                                                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nenhuma avaliação registrada</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+
+                                                    {/* Right Col: Cast (Elenco) */}
+                                                    <div className="xl:col-span-4 space-y-6">
+                                                        <div>
+                                                            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Elenco</h5>
+                                                            <div className="bg-white border border-gray-100 rounded-[32px] p-6 shadow-sm">
+                                                                <div className="flex flex-wrap gap-2 mb-6">
+                                                                    {session.attendees.map(id => (
+                                                                        <div key={id} className="bg-white px-3 py-2 rounded-xl border border-gray-200 text-[10px] font-black text-slate-600 shadow-sm">
+                                                                            {athletes.find(a => String(a.id) === String(id))?.name || 'Atleta'}
+                                                                        </div>
+                                                                    ))}
+                                                                    {session.attendees.length === 0 && (
+                                                                        <span className="text-xs text-slate-400 italic font-medium w-full text-center py-4">Nenhum atleta presente</span>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Adherence Bar */}
+                                                                <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100">
+                                                                    <div className="flex justify-between items-end mb-2">
+                                                                        <span className="text-[9px] font-black text-blue-300 uppercase tracking-widest">Aderência</span>
+                                                                        <span className="text-lg font-black text-blue-600">{session.adherence}%</span>
+                                                                    </div>
+                                                                    <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+                                                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${session.adherence}%` }}></div>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
+
                                                 </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            {allHistory.length === 0 && (
+                                <div className="py-20 text-center flex flex-col items-center justify-center space-y-4 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+                                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-gray-300 shadow-sm border border-gray-100">
+                                        <History size={24} />
+                                    </div>
+                                    <p className="text-gray-400 font-bold text-xs tracking-widest uppercase">Nenhum treino finalizado encontrado.</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -704,66 +1027,6 @@ export default function TrainingPage() {
         const presentAthletes = athletes.filter(a => attendance[a.id]);
         const presentCount = Object.values(attendance).filter(Boolean).length;
 
-        const EvaluationDrawerContent = () => {
-            if (!selectedBlockEval) return null;
-            const [checkedAthletes, setCheckedAthletes] = useState<Record<string, boolean>>(() => {
-                const initial: Record<string, boolean> = {};
-                (sessionEvaluations[selectedBlockEval.id] || []).forEach(e => initial[e.athleteId] = true);
-                return initial;
-            });
-            const [localEvals, setLocalEvals] = useState<Record<string, { rpe: number, exhaustion: number, times: string }>>(() => {
-                const initial: Record<string, { rpe: number, exhaustion: number, times: string }> = {};
-                (sessionEvaluations[selectedBlockEval.id] || []).forEach(e => { initial[e.athleteId] = { rpe: e.rpe, exhaustion: e.exhaustion, times: e.times || '' }; });
-                return initial;
-            });
-            const handleSave = () => {
-                const evalList: SessionEvaluation[] = Object.entries(checkedAthletes).filter(([_, checked]) => checked).map(([athleteId, _]) => ({
-                    athleteId, athleteName: athletes.find(a => a.id === athleteId)?.name || 'Atleta',
-                    rpe: localEvals[athleteId]?.rpe || 5,
-                    exhaustion: localEvals[athleteId]?.exhaustion || 5,
-                    times: localEvals[athleteId]?.times || ''
-                }));
-                handleSaveEvaluations(selectedBlockEval.id, evalList);
-            };
-            return (
-                <div className="bg-white w-full max-w-2xl h-[90%] rounded-t-3xl shadow-2xl p-6 flex flex-col animate-in slide-in-from-bottom-10" onClick={e => e.stopPropagation()}>
-                    <div className="flex justify-between items-center mb-6"><div><h3 className="text-xl font-bold text-brand-slate">Avaliar série: {selectedBlockEval.exerciseName}</h3><p className="text-sm text-gray-500">Marque o atleta para liberar os controles de percepção.</p></div><button onClick={() => setShowEvalDrawer(false)} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} /></button></div>
-                    <div className="overflow-y-auto flex-1 space-y-3 pr-2 pb-6">
-                        {presentAthletes.map(athlete => {
-                            const isChecked = checkedAthletes[athlete.id];
-                            const val = localEvals[athlete.id] || { rpe: 5, exhaustion: 5, times: '' };
-                            return (
-                                <div key={athlete.id} className={`border rounded-xl overflow-hidden transition-all ${isChecked ? 'border-brand-orange ring-1 ring-brand-orange/10' : 'border-gray-200 bg-white'}`}>
-                                    <div className={`flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 ${isChecked ? 'bg-orange-50/50' : ''}`} onClick={() => { setCheckedAthletes(p => ({ ...p, [athlete.id]: !p[athlete.id] })); if (!localEvals[athlete.id]) setLocalEvals(p => ({ ...p, [athlete.id]: { rpe: 5, exhaustion: 5, times: '' } })); }}>
-                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isChecked ? 'bg-brand-orange border-brand-orange text-white' : 'border-gray-300 bg-white'}`}>{isChecked && <Check size={12} strokeWidth={4} />}</div>
-                                        <div className="flex flex-col"><span className="font-bold text-slate-700">{athlete.name}</span><span className="text-[10px] font-bold text-gray-400 uppercase">{athlete.category}</span></div>
-                                    </div>
-                                    {isChecked && (
-                                        <div className="p-4 bg-white border-t border-orange-100 space-y-6 animate-in fade-in">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase mb-2"><span>RPE</span><span className="text-brand-orange">{val.rpe}/10</span></div><input type="range" min="0" max="10" value={val.rpe} onChange={e => setLocalEvals(p => ({ ...p, [athlete.id]: { ...val, rpe: parseInt(e.target.value) } }))} className="w-full accent-brand-orange" /></div>
-                                                <div><div className="flex justify-between text-[10px] font-black text-gray-400 uppercase mb-2"><span>Exaustão</span><span className="text-red-500">{val.exhaustion}/10</span></div><input type="range" min="0" max="10" value={val.exhaustion} onChange={e => setLocalEvals(p => ({ ...p, [athlete.id]: { ...val, exhaustion: parseInt(e.target.value) } }))} className="w-full accent-red-500" /></div>
-                                            </div>
-                                            <div>
-                                                <label className="text-[10px] font-black text-gray-400 uppercase mb-2 block">Tempos alcançados (Opcional)</label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Ex: 31.5, 32.1, 31.8..."
-                                                    value={val.times}
-                                                    onChange={e => setLocalEvals(p => ({ ...p, [athlete.id]: { ...val, times: e.target.value } }))}
-                                                    className="w-full p-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-brand-orange outline-none transition-colors font-mono"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <div className="pt-4 border-t border-gray-100"><button onClick={handleSave} className="w-full bg-brand-slate text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2"><CheckCircle2 size={18} /> Salvar avaliações</button></div>
-                </div>
-            );
-        };
 
         return (
             <div className="h-full flex flex-col animate-in slide-in-from-right-4 relative">
@@ -793,21 +1056,89 @@ export default function TrainingPage() {
                         <div className="space-y-4">
                             {liveWorkout.blocks.map(block => {
                                 const evals = sessionEvaluations[block.id]?.length || 0;
+                                const isExpanded = expandedBlockId === block.id;
+                                const blockStats = calculateBlockStats(block.subdivisions);
                                 return (
-                                    <div key={block.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row group hover:border-brand-orange/30 transition-all">
-                                        <div className={`w-1.5 md:w-1.5 ${evals > 0 ? 'bg-brand-success' : 'bg-brand-slate'}`}></div>
-                                        <div className="flex-1 p-5 flex justify-between items-center">
-                                            <div><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-black text-gray-400 uppercase">Série #{block.order}</span><span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded uppercase">{block.rpe}</span></div><h4 className="font-bold text-lg text-brand-slate">{block.exerciseName}</h4><div className="flex items-center gap-3 mt-2"><span className="text-xs font-mono font-bold text-gray-500 bg-gray-50 px-2 py-0.5 rounded border">{block.mainSet}</span><span className="text-[10px] font-bold text-gray-400 flex items-center gap-1"><Droplets size={12} /> {block.volume}m</span></div></div>
-                                            <div className="flex items-center gap-4">
-                                                {evals > 0 && <div className="bg-green-50 text-brand-success px-2.5 py-1 rounded-full text-xs font-bold border border-green-100 flex items-center gap-1"><UserCheck size={14} /> {evals} Avaliados</div>}
-                                                <button
-                                                    onClick={() => { setSelectedBlockEval(block); setShowEvalDrawer(true); }}
-                                                    className={`px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm ${evals > 0 ? 'bg-gray-100 text-gray-600' : 'bg-brand-slate text-white hover:bg-slate-700'}`}
-                                                >
-                                                    {evals > 0 ? <Edit2 size={14} /> : <ChartBar size={14} />} {evals > 0 ? 'Ajustar' : 'Avaliar série'}
-                                                </button>
+                                    <div key={block.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden transition-all">
+                                        {/* Header */}
+                                        <div
+                                            className="p-6 cursor-pointer hover:bg-gray-50/50 transition-all"
+                                            onClick={() => setExpandedBlockId(isExpanded ? null : block.id)}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="w-12 h-12 bg-gray-100 text-brand-slate rounded-full flex items-center justify-center font-black text-xl border-2 border-gray-200">{block.order}</div>
+                                                    <div>
+                                                        <div className="flex items-center gap-3 mb-1">
+                                                            <h4 className="font-black text-xl text-brand-slate tracking-tight leading-none">{block.exerciseName}</h4>
+                                                            <span className="text-[10px] font-black bg-orange-100 text-brand-orange px-2 py-0.5 rounded uppercase tracking-wide">{block.rpe}</span>
+                                                        </div>
+                                                        <p className="text-sm text-gray-400 font-medium">{block.mainSet} {block.observations && `— ${block.observations}`}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="text-right hidden xl:block">
+                                                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Volume</div>
+                                                        <div className="text-2xl font-black text-brand-slate">{block.volume}m</div>
+                                                    </div>
+                                                    <div className="text-right hidden xl:block">
+                                                        <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">DDR</div>
+                                                        <div className="text-2xl font-black text-emerald-600">{blockStats.ddr}m</div>
+                                                    </div>
+                                                    <div className="text-right hidden xl:block">
+                                                        <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">DCR</div>
+                                                        <div className="text-2xl font-black text-blue-600">{blockStats.dcr}m</div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-3 pl-4 border-l border-gray-100">
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setSelectedBlockEval(block); setShowEvalDrawer(true); }}
+                                                            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all shadow-sm uppercase tracking-wider ${evals > 0 ? 'bg-white border border-gray-200 text-brand-success' : 'bg-brand-slate text-white hover:bg-slate-700'}`}
+                                                        >
+                                                            {evals > 0 ? <Check size={14} /> : <ChartBar size={14} />}
+                                                            {evals > 0 ? `${evals} Avaliados` : 'Avaliar'}
+                                                        </button>
+                                                        <div className="text-gray-400 ml-2">
+                                                            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
+
+                                        {/* Expanded Content */}
+                                        {isExpanded && (
+                                            <div className="border-t border-gray-100">
+                                                {block.subdivisions.length > 0 ? (
+                                                    <div className="px-6 py-4">
+                                                        <div className="grid grid-cols-6 gap-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest pb-3 border-b border-gray-100">
+                                                            <div>Tipo</div>
+                                                            <div>Série x Mts</div>
+                                                            <div>Observações</div>
+                                                            <div className="text-center">Tempo / Pausa</div>
+                                                            <div className="text-center">DA-RE / DA-ER</div>
+                                                            <div className="text-right">Base Funcional</div>
+                                                        </div>
+                                                        {block.subdivisions.map(sub => (
+                                                            <div key={sub.id} className="grid grid-cols-6 gap-4 py-4 border-b border-gray-50 last:border-0 items-center hover:bg-gray-50/50 transition-colors rounded-lg px-2 -mx-2">
+                                                                <div className={`font-black text-sm ${sub.type === 'DDR' ? 'text-emerald-600' : 'text-blue-600'}`}>{sub.type}</div>
+                                                                <div className="font-bold text-brand-slate">{sub.seriesOrder}×{sub.distance / (sub.seriesOrder || 1)}m</div>
+                                                                <div className="text-gray-500 italic text-sm">{sub.description || '-'}</div>
+                                                                <div className="text-center font-medium text-gray-600">{sub.interval || '-'}s / {sub.pause || '-'}s</div>
+                                                                <div className="text-center">
+                                                                    <span className="text-brand-orange font-bold">{sub.daRe || '-'}</span>
+                                                                    <span className="text-gray-300 mx-1">/</span>
+                                                                    <span className="text-gray-500">{sub.daEr || '-'}</span>
+                                                                </div>
+                                                                <div className="text-right font-bold text-brand-orange uppercase text-xs">{sub.functionalBase || '-'}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="px-6 py-8 text-center text-gray-400 italic">Nenhuma subdivisão cadastrada.</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -815,7 +1146,7 @@ export default function TrainingPage() {
                         </div>
                     </div>
                 </div>
-                {showEvalDrawer && <div className="fixed inset-0 z-[160] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowEvalDrawer(false)}>{EvaluationDrawerContent()}</div>}
+                {showEvalDrawer && selectedBlockEval && <div className="fixed inset-0 z-[160] bg-black/40 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowEvalDrawer(false)}><SessionEvaluationDrawer block={selectedBlockEval} presentAthletes={presentAthletes} initialEvaluations={sessionEvaluations[selectedBlockEval.id] || []} onSave={(evals) => { handleSaveEvaluations(selectedBlockEval.id, evals); setShowEvalDrawer(false); }} onClose={() => setShowEvalDrawer(false)} /></div>}
             </div>
         );
     };
@@ -828,11 +1159,287 @@ export default function TrainingPage() {
 
             {viewMode === 'DETAILS' && (
                 <div className="h-full flex flex-col animate-in slide-in-from-right-4">
-                    <header className="flex items-center gap-4 mb-8"><button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-white rounded-full text-gray-500"><ArrowLeft size={24} /></button><h2 className="text-2xl font-bold text-brand-slate">Detalhamento do plano</h2></header>
-                    <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden p-8 flex flex-col gap-8">
-                        <div><h3 className="text-3xl font-black text-brand-slate mb-2">{currentWorkout?.title}</h3><div className="flex gap-4 text-sm font-bold text-gray-500 uppercase tracking-widest"><span>{currentWorkout?.date}</span><span>•</span><span className="text-brand-orange">{currentWorkout?.profile}</span></div></div>
-                        <div className="space-y-4">{currentWorkout?.blocks.map(block => (<div key={block.id} className="border border-gray-100 rounded-2xl p-6 bg-gray-50/30 flex justify-between items-center"><div><h4 className="font-bold text-slate-800 text-lg">{block.exerciseName}</h4><p className="text-xs text-gray-400 mt-1">{block.mainSet} • {block.volume}m</p></div><span className="px-3 py-1 bg-white border border-gray-200 rounded-lg text-xs font-black text-gray-400">{block.rpe}</span></div>))}</div>
-                        <button onClick={() => currentWorkout && handleStartRequest(currentWorkout)} className="bg-brand-orange text-white w-full py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl shadow-orange-100 mt-auto">Começar treino</button>
+                    {/* Header with Actions */}
+                    <header className="flex flex-col gap-6 mb-8">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-white rounded-full text-gray-500 hover:text-brand-slate transition-colors">
+                                    <ArrowLeft size={24} />
+                                </button>
+                                <div>
+                                    <span className="text-[10px] bg-brand-orange/10 text-brand-orange uppercase font-black px-2 py-1 rounded mb-1 inline-block tracking-widest">Visualizando Treino</span>
+                                    <h2 className="text-3xl font-black text-brand-slate uppercase tracking-tight leading-none">{currentWorkout?.title}</h2>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex gap-1 bg-white p-1 rounded-xl border border-gray-100 shadow-sm mr-2">
+                                    <button onClick={() => currentWorkout && handleEditWorkout(currentWorkout)} className="p-2 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded-lg transition-colors" title="Editar"><Edit2 size={18} /></button>
+                                    <button onClick={() => currentWorkout && handleDuplicateWorkout(currentWorkout)} className="p-2 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded-lg transition-colors" title="Duplicar"><Copy size={18} /></button>
+                                    <button onClick={() => currentWorkout && handleDeleteRequest(currentWorkout.id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Excluir"><Trash2 size={18} /></button>
+                                </div>
+                                <button onClick={() => currentWorkout && handleStartRequest(currentWorkout)} className="bg-brand-slate text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-xs shadow-xl hover:bg-slate-700 transition-all flex items-center gap-2">
+                                    <Play size={14} fill="white" /> Iniciar Agora
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Tabs */}
+                        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-100 self-start shadow-sm">
+                            <button
+                                onClick={() => setDetailsTab('TECHNICAL')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${detailsTab === 'TECHNICAL' ? 'bg-brand-slate text-white shadow-md' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Detalhamento Técnico
+                            </button>
+                            <button
+                                onClick={() => setDetailsTab('HISTORY')}
+                                className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${detailsTab === 'HISTORY' ? 'bg-brand-slate text-white shadow-md' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                            >
+                                Histórico de Execuções
+                            </button>
+                        </div>
+                    </header>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto">
+                        {detailsTab === 'TECHNICAL' ? (
+                            <div className="space-y-8 pb-8">
+                                {/* Summary Card */}
+                                <div className="bg-white rounded-[32px] border border-gray-200 p-8 shadow-sm flex flex-wrap gap-12 items-center justify-between">
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Volume Total</span>
+                                        <span className="text-4xl font-black text-brand-slate">{currentWorkout?.totalVolume}m</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Perfil</span>
+                                        <span className="text-2xl font-bold text-brand-slate uppercase">{currentWorkout?.profile}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Categoria</span>
+                                        <span className="text-2xl font-bold text-brand-slate uppercase">{currentWorkout?.category}</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Planejado para</span>
+                                        <span className="text-2xl font-bold text-brand-slate flex items-center gap-2"><Calendar size={20} className="text-brand-orange" /> {currentWorkout?.date}</span>
+                                    </div>
+                                </div>
+
+                                {/* Blocks List */}
+                                <div className="space-y-4">
+                                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Séries do treino ({currentWorkout?.blocks.length})</h4>
+                                    {currentWorkout?.blocks.map((block, index) => (
+                                        <div key={block.id} className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
+                                            <div className="flex items-start gap-6 border-b border-gray-50 pb-6 mb-6">
+                                                <div className="w-12 h-12 rounded-2xl bg-brand-orange/10 flex items-center justify-center text-brand-orange font-black text-xl">
+                                                    {index + 1}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3 mb-1">
+                                                        <h5 className="text-2xl font-black text-brand-slate uppercase">{block.exerciseName}</h5>
+                                                        {block.rpe && <span className="text-[10px] bg-brand-orange/10 text-brand-orange px-2 py-1 rounded font-black uppercase tracking-wide">{block.rpe}</span>}
+                                                    </div>
+                                                    <p className="text-gray-400 font-medium">{block.mainSet} — {block.observations || 'Sem observações'}</p>
+                                                </div>
+                                                <div className="text-right flex gap-8">
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[9px] font-bold text-gray-300 uppercase">Volume</span>
+                                                        <span className="text-xl font-black text-brand-slate">{block.volume}m</span>
+                                                    </div>
+                                                    {(() => {
+                                                        const stats = calculateBlockStats(block.subdivisions);
+                                                        return (
+                                                            <>
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="text-[9px] font-bold text-gray-300 uppercase">DDR</span>
+                                                                    <span className="text-xl font-black text-emerald-500">{stats.ddr}m</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="text-[9px] font-bold text-gray-300 uppercase">DCR</span>
+                                                                    <span className="text-xl font-black text-blue-500">{stats.dcr}m</span>
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
+                                            </div>
+
+                                            {/* Subdivisions Table */}
+                                            <div className="w-full">
+                                                <div className="grid grid-cols-12 gap-4 text-[9px] font-black text-gray-300 uppercase tracking-widest mb-4 px-4">
+                                                    <div className="col-span-1">Tipo</div>
+                                                    <div className="col-span-2">Série x Mts</div>
+                                                    <div className="col-span-4">Observações</div>
+                                                    <div className="col-span-2 text-center">Tempo / Pausa</div>
+                                                    <div className="col-span-1 text-center">Da-Re / Da-Er</div>
+                                                    <div className="col-span-2 text-right">Base Funcional</div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {block.subdivisions.map((sub) => (
+                                                        <div key={sub.id} className="grid grid-cols-12 gap-4 items-center bg-gray-50/50 p-4 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                                                            <div className="col-span-1 font-bold text-slate-700">{sub.type}</div>
+                                                            <div className="col-span-2 font-black text-brand-slate">{sub.seriesOrder}x{sub.distance}m</div>
+                                                            <div className="col-span-4 text-xs font-medium text-gray-500 italic">{sub.description || '-'}</div>
+                                                            <div className="col-span-2 text-center text-xs font-bold text-slate-600">{sub.interval || '-'} / {sub.pause || '-'}</div>
+                                                            <div className="col-span-1 text-center text-brand-orange font-bold text-xs">{sub.daRe || '-'} <span className="text-gray-300">/</span> <span className="text-blue-400">{sub.daEr || '-'}</span></div>
+                                                            <div className="col-span-2 text-right text-[10px] font-bold text-gray-400 uppercase">{sub.functionalBase || '-'}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            // History Tab - Using same layout as General History
+                            <div className="space-y-4 pb-8">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <History size={16} className="text-brand-orange" />
+                                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                        Histórico de Execuções ({allHistory.filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id)).length})
+                                    </span>
+                                </div>
+
+                                {allHistory.filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id)).length === 0 ? (
+                                    <div className="text-center py-20 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                                        <History size={48} className="text-gray-200 mx-auto mb-4" />
+                                        <p className="text-gray-400 font-bold">Nenhuma execução registrada para este plano.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {allHistory
+                                            .filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id))
+                                            .map(session => {
+                                                const isExpanded = expandedHistoryId === session.id;
+                                                const sessionDate = new Date(session.date);
+                                                const day = sessionDate.getDate().toString().padStart(2, '0');
+                                                const month = (sessionDate.getMonth() + 1).toString().padStart(2, '0');
+                                                const year = sessionDate.getFullYear();
+
+                                                return (
+                                                    <div key={session.id} className={`bg-white rounded-[32px] border transition-all duration-300 ${isExpanded ? 'border-brand-orange shadow-lg ring-4 ring-brand-orange/5' : 'border-gray-200 shadow-sm hover:shadow-md'}`}>
+                                                        {/* Card Header */}
+                                                        <div
+                                                            onClick={() => setExpandedHistoryId(isExpanded ? null : session.id)}
+                                                            className="p-6 cursor-pointer flex flex-col lg:flex-row items-start lg:items-center gap-6"
+                                                        >
+                                                            {/* Date Block */}
+                                                            <div className="flex flex-col items-center justify-center w-16 h-16 bg-gray-50 rounded-2xl border border-gray-100 shrink-0">
+                                                                <span className="text-xl font-black text-gray-400 leading-none">{day}</span>
+                                                                <span className="text-xs font-bold text-gray-300">{month}</span>
+                                                            </div>
+
+                                                            {/* Info Block */}
+                                                            <div className="flex-1 space-y-2">
+                                                                <div className="flex items-center gap-3">
+                                                                    <h4 className="text-lg font-black text-brand-slate">Sessão em {day}/{month}/{year}</h4>
+                                                                </div>
+                                                                <div className="flex items-center gap-4 text-xs font-bold text-gray-400">
+                                                                    <span className="flex items-center gap-1"><Clock size={14} className="text-gray-300" /> {session.startTime}</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Right Side */}
+                                                            <div className="flex items-center gap-6 self-end lg:self-center">
+                                                                <span className="text-[9px] font-black bg-brand-orange/10 text-brand-orange px-3 py-1.5 rounded-full uppercase tracking-widest border border-brand-orange/20">
+                                                                    {session.attendanceCount} Atletas na água
+                                                                </span>
+                                                                <button className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isExpanded ? 'bg-brand-orange text-white rotate-180' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}>
+                                                                    <ChevronDown size={20} strokeWidth={3} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Expanded Content */}
+                                                        {isExpanded && (
+                                                            <div className="p-8 pt-2 border-t border-gray-100 animate-in slide-in-from-top-4 fade-in duration-300">
+                                                                <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 mt-6">
+                                                                    {/* Left Col: Séries Executadas */}
+                                                                    <div className="xl:col-span-7 space-y-6">
+                                                                        <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                                            <Layers size={12} /> Séries Executadas
+                                                                        </h5>
+
+                                                                        {session.workout.blocks.map((block) => {
+                                                                            const evals = session.blockEvaluations[block.id] || [];
+                                                                            return (
+                                                                                <div key={block.id} className="bg-white rounded-3xl border border-gray-100 p-6 flex flex-col gap-4 shadow-sm">
+                                                                                    <div className="flex justify-between items-start">
+                                                                                        <div className="space-y-1">
+                                                                                            <span className="text-[9px] font-black text-brand-orange uppercase tracking-widest">Série #{block.order}</span>
+                                                                                            <h6 className="text-xl font-black text-brand-slate leading-none">{block.exerciseName}</h6>
+                                                                                            <span className="text-base font-bold text-slate-700">{block.mainSet}</span>
+                                                                                        </div>
+                                                                                        {evals.length > 0 && (
+                                                                                            <span className="text-[9px] font-black bg-emerald-50 text-emerald-600 px-2 py-1 rounded border border-emerald-100 uppercase tracking-widest">
+                                                                                                {evals.length} Atletas
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    {/* Evaluated Athletes */}
+                                                                                    {evals.length > 0 ? (
+                                                                                        <div className="space-y-2 mt-2">
+                                                                                            {evals.map(ev => (
+                                                                                                <div key={ev.athleteId} className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                                                                                                    <span className="text-xs font-bold text-slate-700">{ev.athleteName}</span>
+                                                                                                    <div className="flex gap-3 text-[9px] font-black uppercase">
+                                                                                                        <span className="text-gray-400">RPE <b className="text-brand-orange">{ev.rpe}</b></span>
+                                                                                                        <span className="text-gray-300">|</span>
+                                                                                                        <span className="text-gray-400">EXH <b className="text-brand-orange">{ev.exhaustion}</b></span>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="p-4 bg-gray-50 rounded-2xl border border-dashed border-gray-200 text-center">
+                                                                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nenhuma avaliação registrada</p>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+
+                                                                    {/* Right Col: Elenco */}
+                                                                    <div className="xl:col-span-5 space-y-6">
+                                                                        <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                                            <Users size={12} /> Elenco da Sessão
+                                                                        </h5>
+                                                                        <div className="bg-white border border-gray-100 rounded-[32px] p-6 shadow-sm">
+                                                                            <div className="flex flex-wrap gap-2 mb-6">
+                                                                                {session.attendees.map(id => (
+                                                                                    <div key={id} className="bg-white px-3 py-2 rounded-xl border border-gray-200 text-[10px] font-black text-slate-600 shadow-sm">
+                                                                                        {athletes.find(a => String(a.id) === String(id))?.name || 'Atleta'}
+                                                                                    </div>
+                                                                                ))}
+                                                                                {session.attendees.length === 0 && (
+                                                                                    <span className="text-xs text-slate-400 italic font-medium w-full text-center py-4">Nenhum atleta presente</span>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {/* Adherence Bar */}
+                                                                            <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100">
+                                                                                <div className="flex justify-between items-end mb-2">
+                                                                                    <span className="text-[9px] font-black text-blue-300 uppercase tracking-widest">Aderência</span>
+                                                                                    <span className="text-lg font-black text-blue-600">{session.adherence}%</span>
+                                                                                </div>
+                                                                                <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+                                                                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${session.adherence}%` }}></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

@@ -40,6 +40,8 @@ def create_training_session(
     db.commit()
     db.refresh(db_session)
 
+    total_volume = 0.0
+    
     for series_data in session_in.series:
         subdivisions = series_data.subdivisions
         series_obj = models.TrainingSeries(
@@ -56,9 +58,15 @@ def create_training_session(
                 series_id=series_obj.id
             )
             db.add(sub_obj)
+            # Sum distance * reps for total volume
+            total_volume += (sub_data.distance or 0) * (sub_data.reps or 1)
         
         db.commit()
 
+    # Update session with calculated total_volume
+    db_session.total_volume = total_volume
+    db.add(db_session)
+    db.commit()
     db.refresh(db_session)
     return db_session
 
@@ -93,6 +101,45 @@ def create_session_feedback(
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
+@router.post("/{id}/series", response_model=schemas.TrainingSeries)
+def add_series_to_session(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    series_in: schemas.TrainingSeriesCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Add a new series to an existing training session."""
+    session = db.query(models.TrainingSession).filter(models.TrainingSession.id == id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Training session not found")
+    
+    subdivisions_data = series_in.subdivisions
+    series_obj = models.TrainingSeries(
+        **series_in.dict(exclude={"subdivisions"}),
+        session_id=session.id
+    )
+    db.add(series_obj)
+    db.commit()
+    db.refresh(series_obj)
+    
+    added_volume = 0.0
+    for sub_data in subdivisions_data:
+        sub_obj = models.TrainingSubdivision(
+            **sub_data.dict(),
+            series_id=series_obj.id
+        )
+        db.add(sub_obj)
+        added_volume += (sub_data.distance or 0) * (sub_data.reps or 1)
+    
+    # Update session total_volume
+    session.total_volume = (session.total_volume or 0) + added_volume
+    db.add(session)
+    db.commit()
+    db.refresh(series_obj)
+    return series_obj
+
 @router.post("/{id}/start", response_model=schemas.TrainingSession)
 def start_session(
     id: int,
@@ -132,6 +179,7 @@ def start_session(
             name=series.name,
             reps=series.reps,
             rpe_target=series.rpe_target,
+            rpe_description=series.rpe_description,
             instructions=series.instructions,
             total_distance=series.total_distance
         )
@@ -153,12 +201,7 @@ def start_session(
                 da_re=sub.da_re,
                 da_er=sub.da_er,
                 observation=sub.observation,
-                # functional_base is calculated/stored? Model doesn't have it explicitly mapped yet in backend logic 
-                # but if front sends it, we might want it. 
-                # Wait, backend model TrainingSubdivision does NOT have functional_base column in `models/training.py`.
-                # We relied on frontendcalc. 
-                # If we want to persist it, we need that column too. 
-                # For now, cloning exactly what exists.
+                functional_base=sub.functional_base,
             )
             db.add(new_sub)
     
@@ -179,6 +222,49 @@ def update_training_session(
         raise HTTPException(status_code=404, detail="Training session not found")
     
     update_data = session_in.dict(exclude_unset=True)
+    
+    # Handle series update if present
+    if "series" in update_data:
+        # Clear existing series (with delete-orphan this deletes them and their subdivisions)
+        db_obj.series = []
+        db.commit()
+        db.refresh(db_obj)
+        
+        # Create new series
+        series_data_list = update_data.pop("series")
+        total_volume = 0.0
+        
+        for series_data in series_data_list:
+            if hasattr(series_data, 'dict'):
+                s_data = series_data.dict()
+            else:
+                s_data = series_data
+                
+            subdivisions = s_data.pop("subdivisions", [])
+            
+            series_obj = models.TrainingSeries(
+                **s_data,
+                session_id=db_obj.id
+            )
+            db.add(series_obj)
+            db.commit()
+            db.refresh(series_obj)
+            
+            for sub_data in subdivisions:
+                if hasattr(sub_data, 'dict'):
+                    sub_dict = sub_data.dict()
+                else:
+                    sub_dict = sub_data
+                    
+                sub_obj = models.TrainingSubdivision(
+                    **sub_dict,
+                    series_id=series_obj.id
+                )
+                db.add(sub_obj)
+                total_volume += (sub_dict.get("distance") or 0) * (sub_dict.get("reps") or 1)
+            
+        update_data["total_volume"] = total_volume
+
     for field in update_data:
         setattr(db_obj, field, update_data[field])
     

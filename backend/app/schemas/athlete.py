@@ -21,6 +21,7 @@ class AthleteCreate(AthleteBase):
     email: EmailStr
     birth_date: date
     category: str
+    phone: str
 
 class AthleteUpdate(AthleteBase):
     pass

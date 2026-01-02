@@ -28,6 +28,48 @@ import { athleteService } from '@/services/athleteService'; // Import service
 
 type ViewMode = 'LIST' | 'FORM';
 
+// --- Helpers ---
+const validateCPF = (cpf: string) => {
+    const strCPF = cpf.replace(/[^\d]/g, '');
+    if (strCPF.length !== 11) return false;
+    if (/^(\d)\1+$/.test(strCPF)) return false; // All digits same
+
+    let sum = 0;
+    let remainder;
+    for (let i = 1; i <= 9; i++) sum = sum + parseInt(strCPF.substring(i - 1, i)) * (11 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(strCPF.substring(9, 10))) return false;
+
+    sum = 0;
+    for (let i = 1; i <= 10; i++) sum = sum + parseInt(strCPF.substring(i - 1, i)) * (12 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(strCPF.substring(10, 11))) return false;
+    return true;
+};
+
+const formatCPF = (value: string) => {
+    return value
+        .replace(/\D/g, '')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+        .replace(/(-\d{2})\d+?$/, '$1');
+};
+
+const formatPhone = (value: string) => {
+    return value
+        .replace(/\D/g, '')
+        .replace(/(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{5})(\d)/, '$1-$2')
+        .replace(/(-\d{4})\d+?$/, '$1');
+};
+
+const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
 export default function AthletesPage() {
     const [athletes, setAthletes] = useState<Athlete[]>([]); // Init empty
     const [isLoading, setIsLoading] = useState(true); // Add loading state
@@ -68,6 +110,7 @@ export default function AthletesPage() {
         avatarUrl: '',
         status: 'Active'
     });
+    const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
     const filteredAthletes = useMemo(() => {
         return athletes.filter(a => {
@@ -103,22 +146,70 @@ export default function AthletesPage() {
     };
 
     const handleSave = async () => {
-        if (!formData.firstName || !formData.lastName || !formData.cpf) {
-            alert('Por favor, preencha os campos obrigatórios (Nome, Sobrenome e CPF).');
+        const newErrors: Record<string, string> = {};
+
+        if (!formData.firstName?.trim()) newErrors.firstName = 'Campo obrigatório';
+        if (!formData.lastName?.trim()) newErrors.lastName = 'Campo obrigatório';
+        if (!formData.cpf?.trim()) newErrors.cpf = 'Campo obrigatório';
+        else if (!validateCPF(formData.cpf)) newErrors.cpf = 'CPF inválido';
+
+        if (!formData.birthDate?.trim()) newErrors.birthDate = 'Campo obrigatório';
+        if (!formData.phone?.trim()) newErrors.phone = 'Campo obrigatório';
+
+        if (!formData.email?.trim()) newErrors.email = 'Campo obrigatório';
+        else if (!validateEmail(formData.email)) newErrors.email = 'E-mail inválido';
+
+        if (Object.keys(newErrors).length > 0) {
+            setFormErrors(newErrors);
             return;
         }
 
+        // Sanitize payload: convert empty optional strings to null, but required ones should stay as is (validation handles them)
+        // actually, for required fields, if they are empty, validation above catches them.
+        // But to be safe and clean:
+        const payload = {
+            ...formData,
+            email: formData.email, // Required now
+            phone: formData.phone, // Required now
+            birthDate: formData.birthDate, // Required now
+            address: formData.address?.trim() || null,
+            avatarUrl: formData.avatarUrl?.trim() || null,
+        };
+
         try {
             if (editingAthlete) {
-                await athleteService.update(editingAthlete.id, formData as Athlete);
+                await athleteService.update(editingAthlete.id, payload as Athlete);
             } else {
-                await athleteService.create(formData as Athlete);
+                await athleteService.create(payload as Athlete);
             }
             await loadAthletes(); // Refresh list
             setViewMode('LIST');
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error saving athlete", error);
-            alert("Erro ao salvar atleta.");
+            if (error.response?.data?.detail) {
+                const apiErrors: Record<string, string> = {};
+                if (Array.isArray(error.response.data.detail)) {
+                    error.response.data.detail.forEach((err: any) => {
+                        // err.loc is usually ['body', 'field_name']
+                        const fieldNameSnake = err.loc[err.loc.length - 1];
+                        let fieldName = fieldNameSnake;
+
+                        // Map snake_case to camelCase state keys
+                        if (fieldNameSnake === 'birth_date') fieldName = 'birthDate';
+                        if (fieldNameSnake === 'first_name') fieldName = 'firstName';
+                        if (fieldNameSnake === 'last_name') fieldName = 'lastName';
+
+                        // Translate message
+                        let msg = err.msg;
+                        if (msg === 'field required') msg = 'Campo obrigatório';
+                        if (msg.includes('value is not a valid email')) msg = 'E-mail inválido';
+                        if (msg.includes('valid date')) msg = 'Data inválida';
+
+                        apiErrors[fieldName] = msg;
+                    });
+                }
+                setFormErrors(prev => ({ ...prev, ...apiErrors }));
+            }
         }
     };
 
@@ -129,7 +220,6 @@ export default function AthletesPage() {
             setShowDeleteConfirm(null);
         } catch (error) {
             console.error("Error deleting athlete", error);
-            alert("Erro ao remover atleta.");
         }
     };
 
@@ -290,7 +380,7 @@ export default function AthletesPage() {
                     </div>
                 </>
             ) : (
-                <div className="h-full flex flex-col max-w-5xl mx-auto space-y-8 pb-20 animate-in slide-in-from-right-4">
+                <div className="h-full flex flex-col w-full max-w-[95%] 2xl:max-w-[90%] mx-auto space-y-8 pb-20 animate-in slide-in-from-right-4">
                     <header className="flex items-center justify-between bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm sticky top-0 z-20">
                         <div className="flex items-center gap-6">
                             <button
@@ -308,29 +398,49 @@ export default function AthletesPage() {
                         </div>
                         <button
                             onClick={handleSave}
-                            className="bg-brand-orange text-white px-10 py-3.5 rounded-2xl font-black text-xs tracking-widest shadow-xl shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
+                            className={`bg-brand-orange text-white px-10 py-3.5 rounded-2xl font-black text-xs tracking-widest shadow-xl shadow-orange-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 ${Object.keys(formErrors).length > 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            disabled={Object.keys(formErrors).length > 0}
                         >
                             <Save size={18} /> Salvar Cadastro
                         </button>
                     </header>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Photo & Basic Status */}
-                        <div className="lg:col-span-1 space-y-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* Photo & Basic Status - Left Column */}
+                        <div className="lg:col-span-3 space-y-8">
                             <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm flex flex-col items-center">
-                                <div className="w-40 h-40 rounded-[48px] bg-slate-50 border-4 border-white shadow-xl overflow-hidden relative group cursor-pointer">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    id="avatar-upload"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onloadend = () => {
+                                                setFormData({ ...formData, avatarUrl: reader.result as string });
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                />
+                                <label
+                                    htmlFor="avatar-upload"
+                                    className="w-40 h-40 rounded-[48px] bg-slate-50 border-4 border-slate-100 shadow-xl overflow-hidden relative group cursor-pointer hover:border-brand-orange transition-colors"
+                                >
                                     {formData.avatarUrl ? (
                                         <img src={formData.avatarUrl} alt="Preview" className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
+                                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 group-hover:text-brand-orange transition-colors">
                                             <Camera size={40} />
-                                            <span className="text-[8px] font-black tracking-widest mt-2">Upload Foto</span>
+                                            <span className="text-[8px] font-black tracking-widest mt-2 uppercase">Upload Foto</span>
                                         </div>
                                     )}
-                                    <div className="absolute inset-0 bg-brand-slate/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                    <div className="absolute inset-0 bg-brand-slate/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white backdrop-blur-sm">
                                         <Camera size={32} />
                                     </div>
-                                </div>
+                                </label>
                                 <div className="mt-8 w-full">
                                     <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Link da Foto (URL)</label>
                                     <input
@@ -338,7 +448,7 @@ export default function AthletesPage() {
                                         value={formData.avatarUrl}
                                         onChange={e => setFormData({ ...formData, avatarUrl: e.target.value })}
                                         placeholder="https://..."
-                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:border-brand-orange outline-none transition-all"
+                                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:border-brand-orange outline-none transition-all text-slate-600 placeholder:text-slate-300"
                                     />
                                 </div>
                             </div>
@@ -377,9 +487,9 @@ export default function AthletesPage() {
                             </div>
                         </div>
 
-                        {/* Main Form Data */}
-                        <div className="lg:col-span-2 space-y-8">
-                            <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm space-y-10">
+                        {/* Main Form Data - Right Column (Wider) */}
+                        <div className="lg:col-span-9">
+                            <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm space-y-12">
 
                                 {/* Personal Info */}
                                 <div className="space-y-6">
@@ -387,42 +497,70 @@ export default function AthletesPage() {
                                         <User className="text-brand-orange" size={20} /> Informações Pessoais
                                     </h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div>
+                                        <div className="md:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Nome *</label>
                                             <input
                                                 type="text"
                                                 value={formData.firstName}
-                                                onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-brand-orange transition-all"
+                                                onChange={e => {
+                                                    setFormData({ ...formData, firstName: e.target.value });
+                                                    if (e.target.value) setFormErrors(prev => { const n = { ...prev }; delete n.firstName; return n; });
+                                                }}
+                                                placeholder="Nome"
+                                                className={`w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white transition-all ${formErrors.firstName ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-orange'}`}
                                             />
+                                            {formErrors.firstName && <span className="text-[10px] text-red-500 font-bold mt-1 ml-1 block">{formErrors.firstName}</span>}
                                         </div>
-                                        <div>
+                                        <div className="md:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Sobrenome *</label>
                                             <input
                                                 type="text"
                                                 value={formData.lastName}
-                                                onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-brand-orange transition-all"
+                                                onChange={e => {
+                                                    setFormData({ ...formData, lastName: e.target.value });
+                                                    if (e.target.value) setFormErrors(prev => { const n = { ...prev }; delete n.lastName; return n; });
+                                                }}
+                                                placeholder="Sobrenome"
+                                                className={`w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white transition-all ${formErrors.lastName ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-orange'}`}
                                             />
+                                            {formErrors.lastName && <span className="text-[10px] text-red-500 font-bold mt-1 ml-1 block">{formErrors.lastName}</span>}
                                         </div>
-                                        <div>
+
+                                        <div className="md:col-span-1">
                                             <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">CPF *</label>
                                             <input
                                                 type="text"
                                                 value={formData.cpf}
-                                                onChange={e => setFormData({ ...formData, cpf: e.target.value })}
+                                                onChange={(e) => {
+                                                    const val = formatCPF(e.target.value);
+                                                    setFormData({ ...formData, cpf: val });
+                                                    if (val.length >= 14 && !validateCPF(val)) {
+                                                        setFormErrors(prev => ({ ...prev, cpf: 'CPF inválido' }));
+                                                    } else {
+                                                        setFormErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors.cpf;
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
                                                 placeholder="000.000.000-00"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-brand-orange transition-all"
+                                                className={`w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white transition-all ${formErrors.cpf ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-orange'}`}
                                             />
+                                            {formErrors.cpf && <span className="text-[10px] text-red-500 font-bold mt-1 ml-1 block">{formErrors.cpf}</span>}
                                         </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Data de Nascimento</label>
+                                        <div className="md:col-span-1">
+                                            <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Data de Nascimento *</label>
                                             <input
                                                 type="date"
                                                 value={formData.birthDate}
-                                                onChange={e => setFormData({ ...formData, birthDate: e.target.value })}
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-brand-orange transition-all"
+                                                onChange={e => {
+                                                    setFormData({ ...formData, birthDate: e.target.value });
+                                                    if (e.target.value) setFormErrors(prev => { const n = { ...prev }; delete n.birthDate; return n; });
+                                                }}
+                                                className={`w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white transition-all ${formErrors.birthDate ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-orange'}`}
                                             />
+                                            {formErrors.birthDate && <span className="text-[10px] text-red-500 font-bold mt-1 ml-1 block">{formErrors.birthDate}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -432,28 +570,46 @@ export default function AthletesPage() {
                                     <h4 className="flex items-center gap-3 text-sm font-black text-brand-slate tracking-tight border-b border-slate-100 pb-4">
                                         <Mail className="text-brand-orange" size={20} /> Contato & Endereço
                                     </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                                         <div>
-                                            <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">E-mail</label>
-                                            <input
-                                                type="email"
-                                                value={formData.email}
-                                                onChange={e => setFormData({ ...formData, email: e.target.value })}
-                                                placeholder="atleta@email.com"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-brand-orange transition-all"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Telefone</label>
+                                            <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Telefone *</label>
                                             <input
                                                 type="tel"
                                                 value={formData.phone}
-                                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                                onChange={(e) => {
+                                                    const val = formatPhone(e.target.value);
+                                                    setFormData({ ...formData, phone: val });
+                                                    if (val) setFormErrors(prev => { const n = { ...prev }; delete n.phone; return n; });
+                                                }}
                                                 placeholder="(00) 00000-0000"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-brand-orange transition-all"
+                                                className={`w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white transition-all ${formErrors.phone ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-orange'}`}
                                             />
+                                            {formErrors.phone && <span className="text-[10px] text-red-500 font-bold mt-1 ml-1 block">{formErrors.phone}</span>}
                                         </div>
-                                        <div className="md:col-span-2">
+                                        <div className="xl:col-span-2">
+                                            <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">E-mail *</label>
+                                            <input
+                                                type="email"
+                                                value={formData.email}
+                                                onChange={(e) => {
+                                                    setFormData({ ...formData, email: e.target.value });
+                                                    if (e.target.value && !validateEmail(e.target.value)) {
+                                                        setFormErrors(prev => ({ ...prev, email: 'E-mail inválido' }));
+                                                    } else {
+                                                        setFormErrors(prev => {
+                                                            const newErrors = { ...prev };
+                                                            delete newErrors.email;
+                                                            return newErrors;
+                                                        });
+                                                    }
+                                                }}
+                                                placeholder="atleta@email.com"
+                                                className={`w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white transition-all ${formErrors.email ? 'border-red-300 focus:border-red-500' : 'border-slate-200 focus:border-brand-orange'}`}
+                                            />
+                                            {formErrors.email && <span className="text-[10px] text-red-500 font-bold mt-1 ml-1 block">{formErrors.email}</span>}
+                                        </div>
+
+                                        <div className="xl:col-span-3">
                                             <label className="text-[10px] font-black text-slate-400 tracking-widest mb-2 block">Endereço Completo</label>
                                             <input
                                                 type="text"
@@ -469,38 +625,39 @@ export default function AthletesPage() {
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                </div>)}
 
             {/* Delete Confirmation Modal */}
-            {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-brand-slate/80 z-[300] backdrop-blur-xl flex items-center justify-center p-6">
-                    <div className="bg-white rounded-[40px] p-10 max-w-sm w-full shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95">
-                        <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border border-red-100">
-                            <AlertTriangle size={48} className="text-red-500" />
-                        </div>
-                        <h3 className="text-2xl font-black text-brand-slate mb-2 tracking-tighter leading-none">Excluir Atleta?</h3>
-                        <p className="text-sm text-slate-500 mb-8 font-medium leading-relaxed text-[10px] tracking-widest">
-                            Essa ação removerá permanentemente o cadastro de {athletes.find(a => a.id === showDeleteConfirm)?.name} do sistema.
-                        </p>
-                        <div className="flex gap-4 w-full">
-                            <button
-                                onClick={() => setShowDeleteConfirm(null)}
-                                className="flex-1 py-4 text-xs font-black tracking-widest text-slate-400 hover:bg-slate-50 rounded-2xl transition-all"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={() => handleDelete(showDeleteConfirm)}
-                                className="flex-1 py-4 bg-red-500 text-white font-black text-xs tracking-widest rounded-2xl shadow-xl hover:bg-red-600 active:scale-95 transition-all"
-                            >
-                                Excluir
-                            </button>
+            {
+                showDeleteConfirm && (
+                    <div className="fixed inset-0 bg-brand-slate/80 z-[300] backdrop-blur-xl flex items-center justify-center p-6">
+                        <div className="bg-white rounded-[40px] p-10 max-w-sm w-full shadow-2xl text-center flex flex-col items-center animate-in zoom-in-95">
+                            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 border border-red-100">
+                                <AlertTriangle size={48} className="text-red-500" />
+                            </div>
+                            <h3 className="text-2xl font-black text-brand-slate mb-2 tracking-tighter leading-none">Excluir Atleta?</h3>
+                            <p className="text-sm text-slate-500 mb-8 font-medium leading-relaxed text-[10px] tracking-widest">
+                                Essa ação removerá permanentemente o cadastro de {athletes.find(a => a.id === showDeleteConfirm)?.name} do sistema.
+                            </p>
+                            <div className="flex gap-4 w-full">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(null)}
+                                    className="flex-1 py-4 text-xs font-black tracking-widest text-slate-400 hover:bg-slate-50 rounded-2xl transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(showDeleteConfirm)}
+                                    className="flex-1 py-4 bg-red-500 text-white font-black text-xs tracking-widest rounded-2xl shadow-xl hover:bg-red-600 active:scale-95 transition-all"
+                                >
+                                    Excluir
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-        </div>
+        </div >
     );
 };

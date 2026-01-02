@@ -30,9 +30,6 @@ def read_athletes(
         query = query.filter(models.Athlete.status == status)
 
     athletes = query.offset(skip).limit(limit).all()
-    # Add computed name property for response
-    for athlete in athletes:
-        athlete.name = athlete.name 
     return athletes
 
 @router.post("/", response_model=schemas.Athlete)
@@ -57,7 +54,6 @@ def create_athlete(
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
-    db_obj.name = db_obj.name # Computed
     return db_obj
 
 @router.get("/{id}", response_model=schemas.Athlete)
@@ -73,7 +69,6 @@ def read_athlete(
     athlete = db.query(models.Athlete).filter(models.Athlete.id == id).first()
     if not athlete:
         raise HTTPException(status_code=404, detail="Athlete not found")
-    athlete.name = athlete.name
     return athlete
 
 @router.put("/{id}", response_model=schemas.Athlete)
@@ -98,7 +93,6 @@ def update_athlete(
     db.add(athlete)
     db.commit()
     db.refresh(athlete)
-    athlete.name = athlete.name
     return athlete
 
 @router.delete("/{id}", response_model=schemas.Athlete)
@@ -117,5 +111,4 @@ def delete_athlete(
     
     db.delete(athlete)
     db.commit()
-    athlete.name = athlete.name
     return athlete

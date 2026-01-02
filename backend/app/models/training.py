@@ -44,10 +44,11 @@ class TrainingSession(Base):
     total_volume = Column(Float, default=0.0)
 
     # Self-referential FK for Cloning (Plan -> Session)
-    parent_session_id = Column(Integer, ForeignKey("trainingsession.id"), nullable=True)
+    parent_session_id = Column(Integer, ForeignKey("trainingsession.id", ondelete="SET NULL"), nullable=True)
     parent_session = relationship("TrainingSession", remote_side=[id], backref="copies")
 
     series = relationship("TrainingSeries", back_populates="session", cascade="all, delete-orphan")
+    feedbacks = relationship("SessionFeedback", backref="session", cascade="all, delete-orphan")
 
 class TrainingSeries(Base):
     id = Column(Integer, primary_key=True, index=True)
@@ -57,6 +58,7 @@ class TrainingSeries(Base):
     name = Column(String) # e.g. "Warm up"
     reps = Column(String) # e.g. "2x" or "1x"
     rpe_target = Column(Float, nullable=True)
+    rpe_description = Column(String, nullable=True) # e.g. "AERÓBICO A2"
     instructions = Column(Text, nullable=True)
     total_distance = Column(Float, default=0.0)
 
@@ -78,6 +80,7 @@ class TrainingSubdivision(Base):
     
     da_re = Column(Float, nullable=True)
     da_er = Column(Float, nullable=True)
+    functional_base = Column(String, nullable=True)
     observation = Column(Text, nullable=True)
 
     series = relationship("TrainingSeries", back_populates="subdivisions")

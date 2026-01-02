@@ -38,7 +38,7 @@ export interface MacroCycle {
 
 export interface WorkoutSubdivision {
   id: string;
-  type: 'DDR' | 'DCR'; 
+  type: 'DDR' | 'DCR';
   seriesOrder: number;
   distance: number;
   description: string;
@@ -46,7 +46,7 @@ export interface WorkoutSubdivision {
   interval: string;
   pause: string;
   targetLoads?: string[];
-  totalDistance: number; 
+  totalDistance: number;
   daRe: string;
   daEr: string;
   functionalBase: string;
@@ -55,16 +55,16 @@ export interface WorkoutSubdivision {
 export interface WorkoutBlock {
   id: string;
   order: number;
-  exerciseName: string; 
-  mainSet: string; 
-  observations: string; 
-  volume: number; 
-  ddr: string; 
-  dcr: string; 
-  athleteCount: number; 
-  rpe: string; 
-  exhaustion: string; 
-  fatigue: string; 
+  exerciseName: string;
+  mainSet: string;
+  observations: string;
+  volume: number;
+  ddr: string;
+  dcr: string;
+  athleteCount: number;
+  rpe: string;
+  exhaustion: string;
+  fatigue: string;
   subdivisions: WorkoutSubdivision[];
 }
 
@@ -82,9 +82,9 @@ export interface WorkoutSession {
   startTime: string;
   endTime: string;
   attendanceCount: number;
-  attendees: string[]; 
-  blockEvaluations: Record<string, SessionEvaluation[]>; 
-  gymEvaluations?: Record<string, Record<string, string[]>>; 
+  attendees: string[];
+  blockEvaluations: Record<string, SessionEvaluation[]>;
+  gymEvaluations?: Record<string, Record<string, string[]>>;
 }
 
 export interface Workout {
@@ -95,25 +95,37 @@ export interface Workout {
   profile: 'Velocidade' | 'Fundo' | 'Meio Fundo' | 'Técnica';
   category: string;
   tags: string[];
-  totalVolume: number; 
+  totalVolume: number;
   status: 'Planned' | 'Completed';
   ddr: number;
   dcr: number;
   density: number;
   functionalBase: string;
+  parentSessionId?: number;
   blocks: WorkoutBlock[];
   history: WorkoutSession[];
+  feedbacks?: BackendSessionFeedback[];
+}
+
+export interface BackendSessionFeedback {
+  id: number;
+  session_id: number;
+  athlete_id: number;
+  rpe_real: number | null;
+  exhaustion_level: string | null;
+  notes: string | null;
+  attendance: string;
 }
 
 export interface GymExercise {
   id: string;
-  name: string; 
-  executionMode: string; 
-  sets: number; 
-  reps: string; 
-  restInterval: string; 
-  observation?: string; 
-  targetLoad?: string; 
+  name: string;
+  executionMode: string;
+  sets: number;
+  reps: string;
+  restInterval: string;
+  observation?: string;
+  targetLoad?: string;
   physicalMotorCapacity?: string;
   targetLoads?: string[];
 }
@@ -122,7 +134,7 @@ export interface GymTemplate {
   id: string;
   title: string;
   category: string;
-  author: string; 
+  author: string;
   lastUpdated: string;
   exercises: GymExercise[];
   observations?: string;
@@ -133,10 +145,10 @@ export interface GymWorkout {
   title: string;
   date: string;
   time: string;
-  category: string; 
-  sourceTemplateName?: string; 
+  category: string;
+  sourceTemplateName?: string;
   exercises: GymExercise[];
-  history: WorkoutSession[]; 
+  history: WorkoutSession[];
 }
 
 export interface Athlete {
@@ -152,9 +164,9 @@ export interface Athlete {
   category: string;
   avatarUrl?: string;
   status: 'Active' | 'Blocked';
-  recentLoad?: number; 
+  recentLoad?: number;
   attendance?: boolean;
-  fatigueScore?: number; 
+  fatigueScore?: number;
   bodyWeight?: number;
 }
 
@@ -190,16 +202,16 @@ export interface CompetitionEventHeat {
 }
 
 export interface CompetitionResultEntry {
-    athleteId: string;
-    athleteName: string;
-    time: string; // Formatted time
-    timeMs: number;
-    rank?: number;
-    medal?: 'GOLD' | 'SILVER' | 'BRONZE' | null;
-    trophy?: string | null;
-    frequency?: number;
-    splits?: SplitTime[];
-    isOfficial?: boolean;
+  athleteId: string;
+  athleteName: string;
+  time: string; // Formatted time
+  timeMs: number;
+  rank?: number;
+  medal?: 'GOLD' | 'SILVER' | 'BRONZE' | null;
+  trophy?: string | null;
+  frequency?: number;
+  splits?: SplitTime[];
+  isOfficial?: boolean;
 }
 
 export interface CompetitionEvent {
@@ -216,13 +228,13 @@ export interface Competition {
   id: string;
   name: string;
   location: string;
-  date: string; 
+  date: string;
   endDate?: string;
-  category: string; 
-  subCategory?: string; 
+  category: string;
+  subCategory?: string;
   status: 'Upcoming' | 'Past';
   isActive?: boolean;
-  registeredAthletes: string[]; 
+  registeredAthletes: string[];
   events: CompetitionEvent[];
   individualEventsCount?: number;
   relaysCount?: number;
