@@ -127,7 +127,16 @@ export interface GymExercise {
   observation?: string;
   targetLoad?: string;
   physicalMotorCapacity?: string;
-  targetLoads?: string[];
+  targetLoads?: number[];  // Numeric percentages (e.g., [50, 60, 70] for 50%, 60%, 70%)
+}
+
+export interface GymFeedback {
+  id: number;
+  session_id: number;
+  athlete_id: number;
+  performed_loads: Record<string, number[]>;
+  notes?: string;
+  attendance: string;
 }
 
 export interface GymTemplate {
@@ -143,12 +152,16 @@ export interface GymTemplate {
 export interface GymWorkout {
   id: string;
   title: string;
+  category: string;
+  status: string; // 'Planned' | 'Completed'
   date: string;
   time: string;
-  category: string;
   sourceTemplateName?: string;
+  parent_session_id?: number | null;
   exercises: GymExercise[];
   history: WorkoutSession[];
+  attendanceCount?: number;
+  feedbacks?: GymFeedback[];
 }
 
 export interface Athlete {

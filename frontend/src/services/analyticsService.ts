@@ -78,26 +78,28 @@ export const analyticsService = {
     },
 
     updateAssessment: async (id: string | number, data: any) => {
-        const payload = {
-            date: data.date,
-            weight: data.weight,
-            jump_height: data.jumpHeight,
-            throw_distance: data.throwDistance,
-            observation: data.observation,
-        };
+        const payload: Record<string, any> = {};
+
+        // Only include fields that have actual values (not undefined)
+        if (data.weight !== undefined) payload.weight = data.weight;
+        if (data.jumpHeight !== undefined) payload.jump_height = data.jumpHeight;
+        if (data.throwDistance !== undefined) payload.throw_distance = data.throwDistance;
+        if (data.observation !== undefined) payload.observation = data.observation;
+
         const response = await api.put(`/analytics/assessments/${id}`, payload);
         return mapAssessment(response.data);
     },
 
     updateWellness: async (id: string | number, data: any) => {
-        const payload = {
-            date: data.date,
-            sleep_quality: data.wellnessDetails?.sleep,
-            fatigue_level: data.wellnessDetails?.fatigue,
-            muscle_soreness: data.wellnessDetails?.pain,
-            stress_level: data.wellnessDetails?.stress,
-            notes: data.observation,
-        };
+        const payload: Record<string, any> = {};
+
+        // Only include fields that have actual values (not undefined)
+        if (data.wellnessDetails?.sleep !== undefined) payload.sleep_quality = data.wellnessDetails.sleep;
+        if (data.wellnessDetails?.fatigue !== undefined) payload.fatigue_level = data.wellnessDetails.fatigue;
+        if (data.wellnessDetails?.pain !== undefined) payload.muscle_soreness = data.wellnessDetails.pain;
+        if (data.wellnessDetails?.stress !== undefined) payload.stress_level = data.wellnessDetails.stress;
+        if (data.observation !== undefined) payload.notes = data.observation;
+
         const response = await api.put(`/analytics/wellness/${id}`, payload);
         return mapWellness(response.data);
     }

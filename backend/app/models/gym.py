@@ -22,8 +22,8 @@ class GymExercise(Base):
     reps = Column(String) # "12", "12-15", "Failure"
     rest_time = Column(String, nullable=True) # "60s"
     
-    # "Meta Relativa": Should be a JSON array of targets per set
-    # e.g., ["50% BW", "60% BW", "70% BW"]
+    # "Meta Relativa": JSON array of load percentages as numbers
+    # e.g., [50, 60, 70] meaning 50%, 60%, 70% of body weight
     relative_load_meta = Column(JSON, default=[]) 
     
     observation = Column(Text, nullable=True)
@@ -42,7 +42,20 @@ class GymSession(Base):
     # Copying structure to a snapshot is safer for history preservation
     template_snapshot_id = Column(Integer, ForeignKey("gymtemplate.id"), nullable=True) 
     
+    # Self-referential FK for Cloning (Workout -> Session)
+    parent_session_id = Column(Integer, ForeignKey("gymsession.id", ondelete="SET NULL"), nullable=True)
+    parent_session = relationship("GymSession", remote_side=[id], backref="copies")
+
     status = Column(String, default="Planned") # Planned, Completed
+    category = Column(String, default="Geral")
+    
+    @property
+    def exercises(self):
+        return self.exercises_snapshot
+    
+    # Snapshot of exercises at the time of session creation to preserve history
+    # List of GymExercise dicts
+    exercises_snapshot = Column(JSON, default=[])
 
     feedbacks = relationship("GymFeedback", back_populates="session", cascade="all, delete-orphan")
 

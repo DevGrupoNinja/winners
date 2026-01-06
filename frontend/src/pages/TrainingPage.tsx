@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Calendar, Clock, Plus, Filter, Users, ChevronDown, CheckCircle2, History, Play, StopCircle, ArrowLeft, Droplets, Trash2, Edit2, AlertTriangle, X, Check, Save, Copy, User, ChevronUp, AlertCircle, List, Eye, ChevronLeft, UserPlus, ChevronRight, Search, ChartBar, Layers } from 'lucide-react';
 import { trainingService } from '@/services/trainingService';
 import { athleteService } from '@/services/athleteService';
+import { parseISOToLocalDate, getLocalTodayISO } from '@/lib/utils';
 import { Workout, WorkoutBlock, WorkoutSubdivision, WorkoutSession, SessionEvaluation, Athlete } from '@/types';
 
 type ViewMode = 'LIST' | 'BUILDER' | 'LIVE' | 'DETAILS';
@@ -371,7 +372,7 @@ export default function TrainingPage() {
     // Builder States
     const [builderId, setBuilderId] = useState<string | null>(null);
     const [builderTitle, setBuilderTitle] = useState('');
-    const [builderDate, setBuilderDate] = useState(new Date().toISOString().split('T')[0]);
+    const [builderDate, setBuilderDate] = useState(getLocalTodayISO());
     const [builderTime, setBuilderTime] = useState('00:00');
     const [builderProfile, setBuilderProfile] = useState<'Fundo' | 'Velocidade' | 'Meio Fundo' | 'Técnica'>('Fundo');
     const [builderCategory, setBuilderCategory] = useState('Geral');
@@ -383,7 +384,7 @@ export default function TrainingPage() {
     const handleCreateNew = () => {
         setBuilderId(null);
         setBuilderTitle('');
-        setBuilderDate(new Date().toISOString().split('T')[0]);
+        setBuilderDate(getLocalTodayISO());
         setBuilderBlocks([]);
         setViewMode('BUILDER');
     };
@@ -452,7 +453,7 @@ export default function TrainingPage() {
 
     const handleDuplicateWorkout = (workout: Workout) => {
         setBuilderTitle(`${workout.title} (Cópia)`);
-        setBuilderDate(new Date().toISOString().split('T')[0]);
+        setBuilderDate(getLocalTodayISO());
         setBuilderTime(workout.time);
         setBuilderProfile(workout.profile);
         setBuilderCategory(workout.category);
@@ -641,7 +642,7 @@ export default function TrainingPage() {
                     adherence: adherence,
                     workout: w
                 };
-            }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            }).sort((a, b) => parseISOToLocalDate(b.date).getTime() - parseISOToLocalDate(a.date).getTime());
     }, [workouts, historyCategory, historyProfile, historyStartDate, historyEndDate, athletes]);
 
     const renderListView = () => {
@@ -773,7 +774,7 @@ export default function TrainingPage() {
                         <div className="space-y-4">
                             {allHistory.map((session) => {
                                 const isExpanded = expandedHistoryId === session.id;
-                                const sessionDate = new Date(session.date);
+                                const sessionDate = parseISOToLocalDate(session.date);
                                 const day = sessionDate.getDate().toString().padStart(2, '0');
                                 const month = (sessionDate.getMonth() + 1).toString().padStart(2, '0');
 
@@ -1311,7 +1312,7 @@ export default function TrainingPage() {
                                             .filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id))
                                             .map(session => {
                                                 const isExpanded = expandedHistoryId === session.id;
-                                                const sessionDate = new Date(session.date);
+                                                const sessionDate = parseISOToLocalDate(session.date);
                                                 const day = sessionDate.getDate().toString().padStart(2, '0');
                                                 const month = (sessionDate.getMonth() + 1).toString().padStart(2, '0');
                                                 const year = sessionDate.getFullYear();

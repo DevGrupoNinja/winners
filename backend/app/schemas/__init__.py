@@ -13,9 +13,14 @@ from .training import (
 )
 from .gym import (
     GymTemplate, GymTemplateCreate, GymExercise, GymExerciseCreate,
-    GymSession, GymSessionCreate, GymFeedback, GymFeedbackCreate
+    GymSession, GymSessionCreate, GymSessionStart, GymFeedback, GymFeedbackCreate
 )
 from .analytics import (
     Assessment, AssessmentCreate, AssessmentUpdate, AssessmentBulkCreate,
     Wellness, WellnessCreate, WellnessUpdate, WellnessBulkCreate
+)
+from .cycles_dashboard import (
+    SwimmingDashboard, GymDashboard, GymDetailedDashboard,
+    AthletesDashboard, WellnessDashboard, FunctionalDirection,
+    MacroDashboardResponse, MesoDashboardResponse, MicroDashboardResponse
 )

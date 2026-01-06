@@ -38,8 +38,10 @@ import {
     Moon,
     Wind,
     Activity as ActivityIcon,
-    AlertCircle
+    AlertCircle,
+    AlertTriangle
 } from 'lucide-react';
+import { getLocalTodayISO } from '@/lib/utils';
 import { Athlete, AssessmentData } from '@/types';
 
 type AthleteGroup = 'Todos' | 'Geral' | 'Infantil' | 'Petiz';
@@ -63,6 +65,9 @@ export default function AnalyticsPage() {
 
     // Accordion State for List View
     const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
+
+    // Delete Confirmation State
+    const [deleteEntry, setDeleteEntry] = useState<{ athleteId: string; date: string } | null>(null);
 
     const loadData = React.useCallback(async () => {
         try {
@@ -133,7 +138,7 @@ export default function AnalyticsPage() {
     const [showRegisterModal, setShowRegisterModal] = useState(false);
     const [registerStep, setRegisterStep] = useState<'CATEGORY' | 'DATA'>('CATEGORY');
     const [regCategory, setRegCategory] = useState<TechnicalCategory | ''>('');
-    const [regDate, setRegDate] = useState(new Date().toISOString().split('T')[0]);
+    const [regDate, setRegDate] = useState(getLocalTodayISO());
     const [regSelectedAthleteIds, setRegSelectedAthleteIds] = useState<string[]>([]);
     const [regData, setRegData] = useState<Record<string, any>>({});
     const [regAthleteSearch, setRegAthleteSearch] = useState('');
@@ -160,29 +165,69 @@ export default function AnalyticsPage() {
     const getAthleteStats = (athleteId: string) => {
         let athleteHistory = history.filter(h => h.athleteId === athleteId).sort((a, b) => a.date.localeCompare(b.date));
 
-        const calcMetricStats = (currentVal: any, previousVal: any, allVals: any[]) => {
-            const current = parseFloat(currentVal) || 0;
-            const previous = previousVal !== null ? (parseFloat(previousVal) || 0) : null;
-            const validHistory = allVals.map(v => parseFloat(v) || 0).filter(v => v > 0);
+        // Helper to find the most recent valid value for a specific metric
+        const getLatestMetricValue = <K extends keyof AssessmentData>(key: K): { value: number; prevValue: number | null; allVals: number[] } => {
+            let latestValue = 0;
+            let prevValue: number | null = null;
+            const allVals: number[] = [];
 
-            const bestAllTime = validHistory.length > 0 ? Math.max(...validHistory) : 0;
+            for (let i = athleteHistory.length - 1; i >= 0; i--) {
+                const val = athleteHistory[i][key] as number | undefined;
+                if (val != null && val > 0) {
+                    allVals.unshift(val); // Add to beginning to maintain chronological order
+                    if (latestValue === 0) {
+                        latestValue = val;
+                        // Find previous valid value
+                        for (let j = i - 1; j >= 0; j--) {
+                            const prevVal = athleteHistory[j][key] as number | undefined;
+                            if (prevVal != null && prevVal > 0) {
+                                prevValue = prevVal;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            // Add remaining values we missed
+            for (let i = 0; i < athleteHistory.length; i++) {
+                const val = athleteHistory[i][key] as number | undefined;
+                if (val != null && val > 0 && !allVals.includes(val)) {
+                    allVals.push(val);
+                }
+            }
+            return { value: latestValue, prevValue, allVals };
+        };
+
+        // lowerIsBetter: true for weight (lower is better), false for other metrics (higher is better)
+        const calcMetricStats = (currentVal: number, previousVal: number | null, allVals: number[], lowerIsBetter: boolean = false) => {
+            const current = currentVal || 0;
+            const previous = previousVal;
+            const validHistory = allVals.filter(v => v > 0);
+
+            // For weight: best is MIN, for others: best is MAX
+            const bestAllTime = validHistory.length > 0
+                ? (lowerIsBetter ? Math.min(...validHistory) : Math.max(...validHistory))
+                : 0;
 
             const hasHistory = previous !== null && previous > 0 && current > 0;
             const evolution = hasHistory ? ((current - previous) / previous) * 100 : 0;
 
-            const isPB = current > 0 && current >= bestAllTime;
+            // For weight: PB is when current <= best (lower), for others: current >= best (higher)
+            const isPB = current > 0 && (lowerIsBetter ? current <= bestAllTime : current >= bestAllTime);
             const hasBest = !isPB && bestAllTime > 0 && current > 0;
             const vsBest = hasBest ? ((current - bestAllTime) / bestAllTime) * 100 : 0;
 
             return {
                 evolution: {
                     val: Math.abs(evolution).toFixed(1),
-                    isPositive: evolution >= 0,
+                    // For weight: negative evolution (losing weight) is positive
+                    isPositive: lowerIsBetter ? evolution <= 0 : evolution >= 0,
                     show: hasHistory
                 },
                 vsBest: {
                     val: Math.abs(vsBest).toFixed(1),
-                    isPositive: vsBest >= 0,
+                    // For weight: being below best is positive
+                    isPositive: lowerIsBetter ? vsBest <= 0 : vsBest >= 0,
                     isPB,
                     show: hasBest || isPB
                 }
@@ -203,22 +248,29 @@ export default function AnalyticsPage() {
             };
         }
 
-        const latest = athleteHistory[athleteHistory.length - 1];
-        const previous = athleteHistory.length > 1 ? athleteHistory[athleteHistory.length - 2] : null;
+        // Get latest value for each metric independently
+        const weightData = getLatestMetricValue('weight');
+        const jumpData = getLatestMetricValue('jumpHeight');
+        const throwData = getLatestMetricValue('throwDistance');
+        const wellnessData = getLatestMetricValue('wellnessScore');
 
-        const allWeights = athleteHistory.map(h => h.weight || 0);
-        const allJumps = athleteHistory.map(h => h.jumpHeight || 0);
-        const allThrows = athleteHistory.map(h => h.throwDistance || 0);
-        const allWellness = athleteHistory.map(h => h.wellnessScore || 0);
+        // Build a virtual "latest" object with each metric's most recent value
+        const latest = {
+            date: athleteHistory[athleteHistory.length - 1].date, // Use most recent date for display
+            weight: weightData.value,
+            jumpHeight: jumpData.value,
+            throwDistance: throwData.value,
+            wellnessScore: wellnessData.value
+        };
 
         return {
             history: athleteHistory,
             latest,
             stats: {
-                weight: calcMetricStats(latest.weight, previous ? previous.weight : null, allWeights),
-                jump: calcMetricStats(latest.jumpHeight, previous ? previous.jumpHeight : null, allJumps),
-                throw: calcMetricStats(latest.throwDistance, previous ? previous.throwDistance : null, allThrows),
-                wellness: calcMetricStats(latest.wellnessScore, previous ? previous.wellnessScore : null, allWellness),
+                weight: calcMetricStats(weightData.value, weightData.prevValue, weightData.allVals, true), // lowerIsBetter for weight
+                jump: calcMetricStats(jumpData.value, jumpData.prevValue, jumpData.allVals),
+                throw: calcMetricStats(throwData.value, throwData.prevValue, throwData.allVals),
+                wellness: calcMetricStats(wellnessData.value, wellnessData.prevValue, wellnessData.allVals),
             }
         };
     };
@@ -235,7 +287,7 @@ export default function AnalyticsPage() {
         setRegisterStep('CATEGORY');
         setRegSelectedAthleteIds([]);
         setRegData({});
-        setRegDate(new Date().toISOString().split('T')[0]);
+        setRegDate(getLocalTodayISO());
         setShowRegisterModal(true);
     };
 
@@ -280,24 +332,28 @@ export default function AnalyticsPage() {
         }
     };
 
-    const handleDeleteEntry = async (athleteId: string, date: string) => {
-        if (confirm('Tem certeza que deseja excluir este registro histórico?')) {
-            try {
-                const entry = history.find(h => h.athleteId === athleteId && h.date === date);
-                if (!entry) return;
+    const handleDeleteEntry = (athleteId: string, date: string) => {
+        setDeleteEntry({ athleteId, date });
+    };
 
-                const deletePromises = [];
-                if (entry.id) deletePromises.push(analyticsService.deleteAssessment(entry.id));
-                if (entry.wellnessId) deletePromises.push(analyticsService.deleteWellness(entry.wellnessId));
+    const confirmDeleteEntry = async () => {
+        if (!deleteEntry) return;
+        try {
+            const entry = history.find(h => h.athleteId === deleteEntry.athleteId && h.date === deleteEntry.date);
+            if (!entry) return;
 
-                await Promise.all(deletePromises);
+            const deletePromises = [];
+            if (entry.id) deletePromises.push(analyticsService.deleteAssessment(entry.id));
+            if (entry.wellnessId) deletePromises.push(analyticsService.deleteWellness(entry.wellnessId));
 
-                // Refetch data
-                await loadData();
-            } catch (error) {
-                console.error("Failed to delete entry", error);
-                alert("Erro ao excluir registro");
-            }
+            await Promise.all(deletePromises);
+
+            // Refetch data
+            await loadData();
+            setDeleteEntry(null);
+        } catch (error) {
+            console.error("Failed to delete entry", error);
+            setDeleteEntry(null);
         }
     };
 
@@ -311,37 +367,42 @@ export default function AnalyticsPage() {
         }));
     };
 
-    const renderEvolutionChart = (data: any[], dataKey: string, color: string, title: string, unit: string) => (
-        <div className="h-44 w-full mt-4">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{title}</p>
-            <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
-                    <defs>
-                        <linearGradient id={`color-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={color} stopOpacity={0.2} />
-                            <stop offset="95%" stopColor={color} stopOpacity={0} />
-                        </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" hide />
-                    <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
-                    <Tooltip
-                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
-                        formatter={(value: any) => [`${value}${unit}`, '']}
-                    />
-                    <Area
-                        type="monotone"
-                        dataKey={dataKey}
-                        stroke={color}
-                        strokeWidth={3}
-                        fillOpacity={1}
-                        fill={`url(#color-${dataKey})`}
-                        dot={{ r: 4, fill: color, strokeWidth: 2, stroke: '#fff' }}
-                    />
-                </AreaChart>
-            </ResponsiveContainer>
-        </div>
-    );
+    const renderEvolutionChart = (data: any[], dataKey: string, color: string, title: string, unit: string) => {
+        // Filter data to only include points with valid values for this specific metric
+        const filteredData = data.filter(item => item[dataKey] != null && item[dataKey] > 0);
+
+        return (
+            <div className="h-44 w-full mt-4">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">{title}</p>
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={filteredData}>
+                        <defs>
+                            <linearGradient id={`color-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={color} stopOpacity={0.2} />
+                                <stop offset="95%" stopColor={color} stopOpacity={0} />
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="date" hide />
+                        <YAxis hide domain={['dataMin - 1', 'dataMax + 1']} />
+                        <Tooltip
+                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '11px', fontWeight: 'bold' }}
+                            formatter={(value: any) => [`${value}${unit}`, '']}
+                        />
+                        <Area
+                            type="monotone"
+                            dataKey={dataKey}
+                            stroke={color}
+                            strokeWidth={3}
+                            fillOpacity={1}
+                            fill={`url(#color-${dataKey})`}
+                            dot={{ r: 4, fill: color, strokeWidth: 2, stroke: '#fff' }}
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
+            </div>
+        );
+    };
 
     const renderAthleteDetails = () => {
         const athlete = athletes.find(a => a.id === selectedAthleteIdForDetail);
@@ -476,45 +537,60 @@ export default function AnalyticsPage() {
                                                 const currentIdx = historyArr.length - 1 - idx; // since we reversed
                                                 const prevEntry = currentIdx > 0 ? historyArr[currentIdx - 1] : null;
 
-                                                const calcEvoPb = (current: number | undefined, prev: number | undefined, allVals: (number | undefined)[]) => {
+                                                // lowerIsBetter: true for weight (lower is better), false for other metrics
+                                                const calcEvoPb = (current: number | undefined, prev: number | undefined, allVals: (number | undefined)[], lowerIsBetter: boolean = false) => {
                                                     const curr = current || 0;
                                                     const prevVal = prev || 0;
                                                     const valid = allVals.filter(v => v && v > 0) as number[];
-                                                    const best = valid.length > 0 ? Math.max(...valid) : 0;
+                                                    const best = valid.length > 0
+                                                        ? (lowerIsBetter ? Math.min(...valid) : Math.max(...valid))
+                                                        : 0;
 
                                                     const hasEvo = prevVal > 0 && curr > 0;
                                                     const evo = hasEvo ? ((curr - prevVal) / prevVal) * 100 : 0;
-                                                    const isPB = curr > 0 && curr >= best;
+                                                    const isPB = curr > 0 && (lowerIsBetter ? curr <= best : curr >= best);
                                                     const vsBest = !isPB && best > 0 && curr > 0 ? ((curr - best) / best) * 100 : 0;
 
-                                                    return { evo, isPB, vsBest, hasEvo, hasBest: !isPB && best > 0 && curr > 0 };
+                                                    return {
+                                                        evo,
+                                                        isPB,
+                                                        vsBest,
+                                                        hasEvo,
+                                                        hasBest: !isPB && best > 0 && curr > 0,
+                                                        lowerIsBetter
+                                                    };
                                                 };
 
-                                                const weightStats = calcEvoPb(entry.weight, prevEntry?.weight, historyArr.map(h => h.weight));
+                                                const weightStats = calcEvoPb(entry.weight, prevEntry?.weight, historyArr.map(h => h.weight), true); // lowerIsBetter
                                                 const jumpStats = calcEvoPb(entry.jumpHeight, prevEntry?.jumpHeight, historyArr.map(h => h.jumpHeight));
                                                 const throwStats = calcEvoPb(entry.throwDistance, prevEntry?.throwDistance, historyArr.map(h => h.throwDistance));
 
-                                                const renderMetricCell = (val: number | undefined, unit: string, metricStats: typeof weightStats) => (
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <span className="font-black text-brand-slate text-sm">
-                                                            {val || '-'}<span className="text-[10px] text-slate-300 ml-0.5">{unit}</span>
-                                                        </span>
-                                                        {val && val > 0 && (
-                                                            <div className="flex flex-col">
-                                                                {metricStats.hasEvo && (
-                                                                    <span className={`text-[9px] font-bold ${metricStats.evo >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                                        {metricStats.evo >= 0 ? '+' : ''}{metricStats.evo.toFixed(1)}% EVOL.
-                                                                    </span>
-                                                                )}
-                                                                {metricStats.isPB ? (
-                                                                    <span className="text-[9px] font-bold text-brand-orange">PB ALCANÇADO</span>
-                                                                ) : metricStats.hasBest && (
-                                                                    <span className="text-[9px] font-bold text-slate-400">({metricStats.vsBest.toFixed(1)}% PB)</span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
+                                                const renderMetricCell = (val: number | undefined, unit: string, metricStats: typeof weightStats) => {
+                                                    // For weight: negative evolution (losing weight) is positive
+                                                    const isEvoPositive = metricStats.lowerIsBetter ? metricStats.evo <= 0 : metricStats.evo >= 0;
+                                                    const hasValue = val != null && val > 0;
+                                                    return (
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="font-black text-brand-slate text-sm">
+                                                                {hasValue ? <>{val}<span className="text-[10px] text-slate-300 ml-0.5">{unit}</span></> : '-'}
+                                                            </span>
+                                                            {hasValue && (
+                                                                <div className="flex flex-col">
+                                                                    {metricStats.hasEvo && (
+                                                                        <span className={`text-[9px] font-bold ${isEvoPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                            {metricStats.evo >= 0 ? '+' : ''}{metricStats.evo.toFixed(1)}% EVOL.
+                                                                        </span>
+                                                                    )}
+                                                                    {metricStats.isPB ? (
+                                                                        <span className="text-[9px] font-bold text-brand-orange">PB ALCANÇADO</span>
+                                                                    ) : metricStats.hasBest && (
+                                                                        <span className="text-[9px] font-bold text-slate-400">({metricStats.vsBest.toFixed(1)}% PB)</span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                };
 
                                                 return (
                                                     <>
@@ -561,13 +637,13 @@ export default function AnalyticsPage() {
                                                             setEditingEntry({ athleteId: entry.athleteId, date: entry.date });
                                                             setRegData({
                                                                 [entry.athleteId]: {
-                                                                    weight: entry.weight,
-                                                                    jumpHeight: entry.jumpHeight,
-                                                                    throwDistance: entry.throwDistance,
-                                                                    sleep: entry.wellnessDetails?.sleep || 5,
-                                                                    fatigue: entry.wellnessDetails?.fatigue || 5,
-                                                                    pain: entry.wellnessDetails?.pain || 5,
-                                                                    stress: entry.wellnessDetails?.stress || 5
+                                                                    weight: entry.weight?.toString() ?? '',
+                                                                    jumpHeight: entry.jumpHeight?.toString() ?? '',
+                                                                    throwDistance: entry.throwDistance?.toString() ?? '',
+                                                                    sleep: entry.wellnessDetails?.sleep?.toString() ?? '',
+                                                                    fatigue: entry.wellnessDetails?.fatigue?.toString() ?? '',
+                                                                    pain: entry.wellnessDetails?.pain?.toString() ?? '',
+                                                                    stress: entry.wellnessDetails?.stress?.toString() ?? ''
                                                                 }
                                                             });
                                                         }}
@@ -782,37 +858,50 @@ export default function AnalyticsPage() {
 
                 const updatePromises = [];
 
-                // Update Assessment if either it existed or new values were provided
-                const assessmentData = {
-                    date: editingEntry.date,
-                    weight: parseFloat(data.weight) || 0,
-                    jumpHeight: parseFloat(data.jumpHeight) || 0,
-                    throwDistance: parseFloat(data.throwDistance) || 0,
-                };
+                // Update Assessment - use undefined for empty values, not 0
+                const weightVal = data.weight ? parseFloat(data.weight) : undefined;
+                const jumpVal = data.jumpHeight ? parseFloat(data.jumpHeight) : undefined;
+                const throwVal = data.throwDistance ? parseFloat(data.throwDistance) : undefined;
 
-                if (existingEntry.id) {
-                    updatePromises.push(analyticsService.updateAssessment(existingEntry.id, assessmentData));
-                } else if (assessmentData.weight || assessmentData.jumpHeight || assessmentData.throwDistance) {
-                    // If it didn't exist but we added some data, maybe we should create it?
-                    // For now let's assume update only if existed, or use bulk create for one item.
-                    updatePromises.push(analyticsService.createAssessmentsBulk([{ ...assessmentData, athleteId: editingEntry.athleteId }]));
+                const hasAssessmentData = weightVal !== undefined || jumpVal !== undefined || throwVal !== undefined;
+
+                if (hasAssessmentData) {
+                    const assessmentData = {
+                        weight: weightVal ?? null,
+                        jumpHeight: jumpVal ?? null,
+                        throwDistance: throwVal ?? null,
+                    };
+
+                    if (existingEntry.id) {
+                        updatePromises.push(analyticsService.updateAssessment(existingEntry.id, assessmentData));
+                    } else {
+                        updatePromises.push(analyticsService.createAssessmentsBulk([{ ...assessmentData, athleteId: editingEntry.athleteId, date: editingEntry.date }]));
+                    }
                 }
 
-                // Update Wellness
-                const wellnessData = {
-                    date: editingEntry.date,
-                    wellnessDetails: {
-                        sleep: parseInt(data.sleep) || 5,
-                        fatigue: parseInt(data.fatigue) || 5,
-                        pain: parseInt(data.pain) || 5,
-                        stress: parseInt(data.stress) || 5
-                    }
-                };
+                // Update Wellness - only if any value was provided
+                const sleepVal = data.sleep ? parseInt(data.sleep) : undefined;
+                const fatigueVal = data.fatigue ? parseInt(data.fatigue) : undefined;
+                const painVal = data.pain ? parseInt(data.pain) : undefined;
+                const stressVal = data.stress ? parseInt(data.stress) : undefined;
 
-                if (existingEntry.wellnessId) {
-                    updatePromises.push(analyticsService.updateWellness(existingEntry.wellnessId, wellnessData));
-                } else {
-                    updatePromises.push(analyticsService.createWellnessBulk([{ ...wellnessData, athleteId: editingEntry.athleteId }]));
+                const hasWellnessData = sleepVal !== undefined || fatigueVal !== undefined || painVal !== undefined || stressVal !== undefined;
+
+                if (hasWellnessData) {
+                    const wellnessData = {
+                        wellnessDetails: {
+                            sleep: sleepVal ?? null,
+                            fatigue: fatigueVal ?? null,
+                            pain: painVal ?? null,
+                            stress: stressVal ?? null
+                        }
+                    };
+
+                    if (existingEntry.wellnessId) {
+                        updatePromises.push(analyticsService.updateWellness(existingEntry.wellnessId, wellnessData));
+                    } else {
+                        updatePromises.push(analyticsService.createWellnessBulk([{ ...wellnessData, athleteId: editingEntry.athleteId, date: editingEntry.date }]));
+                    }
                 }
 
                 await Promise.all(updatePromises);
@@ -1082,6 +1171,35 @@ export default function AnalyticsPage() {
 
             {/* Edit Modal */}
             {renderEditEntryModal()}
+
+            {/* Delete Confirmation Modal */}
+            {deleteEntry && (
+                <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center backdrop-blur-sm p-4 animate-in fade-in">
+                    <div className="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <AlertTriangle size={32} className="text-red-500" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-2">Excluir registro?</h3>
+                        <p className="text-sm text-gray-400 mb-6">
+                            Esta ação removerá permanentemente o registro de avaliação do dia {deleteEntry.date}. Não é possível desfazer.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setDeleteEntry(null)}
+                                className="flex-1 py-3 text-gray-600 font-bold hover:bg-gray-50 rounded-xl"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmDeleteEntry}
+                                className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 shadow-lg"
+                            >
+                                Excluir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,5 +1,5 @@
 from typing import List, Optional, Any, Dict
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import date, time
 
 # --- Exercises ---
@@ -10,7 +10,7 @@ class GymExerciseBase(BaseModel):
     sets: int
     reps: str
     rest_time: Optional[str] = None
-    relative_load_meta: List[Any] = [] # List of targets
+    relative_load_meta: List[float] = []  # List of load percentages as numbers (e.g., [50, 60, 70])
     observation: Optional[str] = None
 
 class GymExerciseCreate(GymExerciseBase):
@@ -56,16 +56,33 @@ class GymFeedback(GymFeedbackBase):
 
 class GymSessionBase(BaseModel):
     date: date
-    time: Optional[time] = None
+    time: Optional[str] = None  # Store as string "HH:MM" format
     title: str
+    category: Optional[str] = "Geral"
     template_snapshot_id: Optional[int] = None
+    parent_session_id: Optional[int] = None
     status: Optional[str] = "Planned"
+    exercises: List[GymExerciseBase] = [] # Snapshot of exercises
 
 class GymSessionCreate(GymSessionBase):
     pass
 
+class GymSessionStart(BaseModel):
+    time: Optional[str] = None  # Accept string format like "HH:MM"
+
 class GymSession(GymSessionBase):
     id: int
+    parent_session_id: Optional[int] = None
     feedbacks: List[GymFeedback] = []
+    
     class Config:
         from_attributes = True
+    
+    @field_validator('time', mode='before')
+    @classmethod
+    def convert_time_to_str(cls, v):
+        if v is None:
+            return None
+        if hasattr(v, 'strftime'):
+            return v.strftime("%H:%M")
+        return str(v) if v else None
