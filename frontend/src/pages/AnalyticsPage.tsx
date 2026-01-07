@@ -44,12 +44,13 @@ import {
 import { getLocalTodayISO } from '@/lib/utils';
 import { Athlete, AssessmentData } from '@/types';
 
-type AthleteGroup = 'Todos' | 'Geral' | 'Infantil' | 'Petiz';
+type AthleteGroup = string;
 type TechnicalCategory = 'all' | 'peso' | 'salto' | 'arremesso' | 'bem-estar';
 
 export default function AnalyticsPage() {
     // Data State
     const [athletes, setAthletes] = useState<Athlete[]>([]);
+    const [categories, setCategories] = useState<string[]>(['Todos', 'Geral', 'Infantil', 'Petiz']);
     const [history, setHistory] = useState<AssessmentData[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -72,13 +73,17 @@ export default function AnalyticsPage() {
     const loadData = React.useCallback(async () => {
         try {
             setLoading(true);
-            const [athletesData, assessmentsData, wellnessData] = await Promise.all([
+            const [athletesData, assessmentsData, wellnessData, categoriesData] = await Promise.all([
                 athleteService.getAll(),
                 analyticsService.getAssessments(),
-                analyticsService.getWellness()
+                analyticsService.getWellness(),
+                athleteService.getCategories().catch(() => [])
             ]);
 
             setAthletes(athletesData);
+            if (categoriesData.length > 0) {
+                setCategories(['Todos', ...categoriesData.map((c: any) => c.name)]);
+            }
 
             // Step 1: Merge all assessments for the same athlete+date into a single record
             const assessmentMap = new Map<string, AssessmentData>();
@@ -707,7 +712,7 @@ export default function AnalyticsPage() {
                 <div className="flex items-center gap-4">
                     <span className="text-xs font-black text-slate-400 uppercase tracking-widest">Categoria:</span>
                     <div className="flex items-center gap-2">
-                        {(['Todos', 'Geral', 'Infantil', 'Petiz'] as AthleteGroup[]).map((group) => (
+                        {categories.map((group) => (
                             <button
                                 key={group}
                                 onClick={() => setSelectedGroup(group)}

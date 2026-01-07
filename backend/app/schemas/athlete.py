@@ -38,3 +38,19 @@ class AthleteInDBBase(AthleteBase):
 
 class Athlete(AthleteInDBBase):
     pass
+
+
+# --- ConfigAthleteCategory Schemas ---
+
+class ConfigAthleteCategoryBase(BaseModel):
+    name: str
+
+class ConfigAthleteCategoryCreate(ConfigAthleteCategoryBase):
+    pass
+
+class ConfigAthleteCategory(ConfigAthleteCategoryBase):
+    id: int
+    is_active: int = 1
+
+    class Config:
+        from_attributes = True

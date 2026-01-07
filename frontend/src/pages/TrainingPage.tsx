@@ -317,6 +317,7 @@ export default function TrainingPage() {
     const [mainTab, setMainTab] = useState<MainTab>('PLANS');
     const [workouts, setWorkouts] = useState<Workout[]>([]);
     const [athletes, setAthletes] = useState<Athlete[]>([]);
+    const [categories, setCategories] = useState<string[]>(['Todos', 'Geral', 'Infantil', 'Petiz']);
     const [isLoading, setIsLoading] = useState(true);
 
     // Initial Data Fetch
@@ -324,12 +325,16 @@ export default function TrainingPage() {
         const loadData = async () => {
             setIsLoading(true);
             try {
-                const [workoutsData, athletesData] = await Promise.all([
+                const [workoutsData, athletesData, categoriesData] = await Promise.all([
                     trainingService.getAll(),
-                    athleteService.getAll()
+                    athleteService.getAll(),
+                    athleteService.getCategories().catch(() => [])
                 ]);
                 setWorkouts(workoutsData);
                 setAthletes(athletesData);
+                if (categoriesData.length > 0) {
+                    setCategories(['Todos', ...categoriesData.map((c: any) => c.name)]);
+                }
             } catch (error) {
                 console.error("Failed to load data", error);
             } finally {
@@ -798,7 +803,7 @@ export default function TrainingPage() {
                                 </div>
                                 <div className="flex items-center gap-2 overflow-x-auto">
                                     <span className="text-xs text-gray-400 uppercase font-bold whitespace-nowrap">Categoria:</span>
-                                    {['Todos', 'Geral', 'Infantil', 'Petiz'].map(c => (
+                                    {categories.map(c => (
                                         <FilterChip key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />
                                     ))}
                                 </div>
@@ -855,7 +860,7 @@ export default function TrainingPage() {
                                 </div>
                                 <div className="flex items-center gap-2 overflow-x-auto">
                                     <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Categoria:</span>
-                                    {['Todos', 'Geral', 'Infantil', 'Petiz'].map(c => (
+                                    {categories.map(c => (
                                         <FilterChip key={c} label={c} active={historyCategory === c} onClick={() => setHistoryCategory(c)} />
                                     ))}
                                 </div>
@@ -908,7 +913,7 @@ export default function TrainingPage() {
                                             {/* Right Side Actions */}
                                             <div className="flex items-center gap-6 self-end lg:self-center w-full lg:w-auto justify-between lg:justify-end">
                                                 <div className="text-right">
-                                                    <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Elenco</div>
+                                                    <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Atletas</div>
                                                     <div className="text-lg font-black text-brand-slate">{session.attendanceCount} Atletas</div>
                                                 </div>
                                                 <button
@@ -976,7 +981,7 @@ export default function TrainingPage() {
                                                     {/* Right Col: Cast (Elenco) */}
                                                     <div className="xl:col-span-4 space-y-6">
                                                         <div>
-                                                            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Elenco</h5>
+                                                            <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Atletas</h5>
                                                             <div className="bg-white border border-gray-100 rounded-[32px] p-6 shadow-sm">
                                                                 <div className="flex flex-wrap gap-2 mb-6">
                                                                     {session.attendees.map(id => (
@@ -989,16 +994,7 @@ export default function TrainingPage() {
                                                                     )}
                                                                 </div>
 
-                                                                {/* Adherence Bar */}
-                                                                <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100">
-                                                                    <div className="flex justify-between items-end mb-2">
-                                                                        <span className="text-[9px] font-black text-blue-300 uppercase tracking-widest">Aderência</span>
-                                                                        <span className="text-lg font-black text-blue-600">{session.adherence}%</span>
-                                                                    </div>
-                                                                    <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-                                                                        <div className="h-full bg-blue-500 rounded-full" style={{ width: `${session.adherence}%` }}></div>
-                                                                    </div>
-                                                                </div>
+
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1061,7 +1057,7 @@ export default function TrainingPage() {
                         </div>
                         <div>
                             <label className="text-[11px] font-bold text-gray-400 uppercase mb-2 block">Categoria</label>
-                            <select value={builderCategory} onChange={e => setBuilderCategory(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none transition-all appearance-none pr-12 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394A3B8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[length:1.5em_1.5em] bg-[right_1.5rem_center]"><option>Geral</option><option>Infantil</option><option>Petiz</option></select>
+                            <select value={builderCategory} onChange={e => setBuilderCategory(e.target.value)} className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl text-lg font-bold focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-none transition-all appearance-none pr-12 bg-[url('data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%2394A3B8%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[length:1.5em_1.5em] bg-[right_1.5rem_center]">{categories.filter(c => c !== 'Todos').map(c => <option key={c} value={c}>{c}</option>)}</select>
                         </div>
                         <div>
                             <label className="text-[11px] font-bold text-gray-400 uppercase mb-2 block">Perfil</label>
@@ -1140,7 +1136,7 @@ export default function TrainingPage() {
                     <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-16' : 'w-72'}`}>
                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-2"><div className="flex justify-between items-center">{!isSidebarCollapsed && <h3 className="font-bold text-gray-700">Presentes ({presentCount})</h3>}<button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="text-gray-400 hover:text-brand-orange">{isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}</button></div>{!isSidebarCollapsed && <div className="relative"><Search size={14} className="absolute left-2.5 top-2.5 text-gray-400" /><input type="text" placeholder="Atleta..." value={attendanceSearch} onChange={e => setAttendanceSearch(e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-lg py-1.5 pl-8 text-sm" /></div>}</div>
                         <div className="overflow-y-auto flex-1 p-2 space-y-1">
-                            {athletes.filter(a => a.name.toLowerCase().includes(attendanceSearch.toLowerCase())).map(athlete => (
+                            {athletes.filter(a => (liveWorkout.category === 'Geral' || a.category === liveWorkout.category) && a.name.toLowerCase().includes(attendanceSearch.toLowerCase())).map(athlete => (
                                 <div key={athlete.id} className={`flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 ${attendance[athlete.id] ? 'bg-orange-50/50' : ''}`}>
                                     <div
                                         onClick={() => setAttendance({ ...attendance, [athlete.id]: !attendance[athlete.id] })}
@@ -1506,7 +1502,7 @@ export default function TrainingPage() {
                                                                     {/* Right Col: Elenco */}
                                                                     <div className="xl:col-span-5 space-y-6">
                                                                         <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                                            <Users size={12} /> Elenco da Sessão
+                                                                            <Users size={12} /> Atletas da Sessão
                                                                         </h5>
                                                                         <div className="bg-white border border-gray-100 rounded-[32px] p-6 shadow-sm">
                                                                             <div className="flex flex-wrap gap-2 mb-6">
@@ -1520,16 +1516,7 @@ export default function TrainingPage() {
                                                                                 )}
                                                                             </div>
 
-                                                                            {/* Adherence Bar */}
-                                                                            <div className="bg-blue-50/50 rounded-2xl p-5 border border-blue-100">
-                                                                                <div className="flex justify-between items-end mb-2">
-                                                                                    <span className="text-[9px] font-black text-blue-300 uppercase tracking-widest">Aderência</span>
-                                                                                    <span className="text-lg font-black text-blue-600">{session.adherence}%</span>
-                                                                                </div>
-                                                                                <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-                                                                                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${session.adherence}%` }}></div>
-                                                                                </div>
-                                                                            </div>
+
                                                                         </div>
                                                                     </div>
                                                                 </div>

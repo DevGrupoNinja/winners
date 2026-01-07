@@ -1,5 +1,5 @@
 from .user import User
-from .athlete import Athlete
+from .athlete import Athlete, ConfigAthleteCategory
 from .cycles import MacroCycle, MesoCycle, MicroCycle
 from .training import (
     TrainingSession, TrainingSeries, TrainingSubdivision, 

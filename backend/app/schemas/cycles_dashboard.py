@@ -35,7 +35,7 @@ class WellnessDashboard(BaseModel):
     avg_muscle_soreness: Optional[float] = None
 
 # Dynamic functional direction - keys come from system configuration
-FunctionalDirection = Dict[str, int]
+FunctionalDirection = Dict[str, float]
 
 class MacroDashboardResponse(BaseModel):
     swimming: SwimmingDashboard
@@ -43,6 +43,7 @@ class MacroDashboardResponse(BaseModel):
     athletes: AthletesDashboard
     wellness: WellnessDashboard
     results: dict = {}
+    relative_load: Optional[float] = None
 
 class MesoDashboardResponse(BaseModel):
     swimming: SwimmingDashboard
@@ -52,6 +53,7 @@ class MesoDashboardResponse(BaseModel):
     functional_direction: FunctionalDirection
     target_er: Optional[float] = None  # Average ER from subdivisions
     target_re: Optional[float] = None  # Average RE from subdivisions
+    relative_load: Optional[float] = None
 
 class MicroDashboardResponse(BaseModel):
     swimming: SwimmingDashboard

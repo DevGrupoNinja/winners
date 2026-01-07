@@ -56,6 +56,88 @@ def create_athlete(
     db.refresh(db_obj)
     return db_obj
 
+
+# --- Category Configuration Endpoints ---
+# IMPORTANT: These routes MUST come BEFORE /{id} routes to avoid conflict
+
+@router.get("/categories/", response_model=List[schemas.ConfigAthleteCategory])
+def read_athlete_categories(
+    db: Session = Depends(deps.get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Get all active athlete categories."""
+    return db.query(models.ConfigAthleteCategory).filter(
+        models.ConfigAthleteCategory.is_active == 1
+    ).all()
+
+@router.post("/categories/", response_model=schemas.ConfigAthleteCategory)
+def create_athlete_category(
+    *,
+    db: Session = Depends(deps.get_db),
+    category_in: schemas.ConfigAthleteCategoryCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Create a new athlete category."""
+    existing = db.query(models.ConfigAthleteCategory).filter(
+        models.ConfigAthleteCategory.name == category_in.name
+    ).first()
+    if existing:
+        if existing.is_active == 0:
+            # Reactivate
+            existing.is_active = 1
+            db.commit()
+            db.refresh(existing)
+            return existing
+        raise HTTPException(status_code=400, detail="Category already exists")
+    
+    db_obj = models.ConfigAthleteCategory(**category_in.dict())
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+@router.put("/categories/{id}", response_model=schemas.ConfigAthleteCategory)
+def update_athlete_category(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    category_in: schemas.ConfigAthleteCategoryCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Update an athlete category."""
+    db_obj = db.query(models.ConfigAthleteCategory).filter(
+        models.ConfigAthleteCategory.id == id
+    ).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    db_obj.name = category_in.name
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+@router.delete("/categories/{id}", response_model=schemas.ConfigAthleteCategory)
+def delete_athlete_category(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Soft-delete an athlete category."""
+    db_obj = db.query(models.ConfigAthleteCategory).filter(
+        models.ConfigAthleteCategory.id == id
+    ).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    db_obj.is_active = 0
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+
+# --- Athlete CRUD with path parameters (MUST come AFTER static routes) ---
+
 @router.get("/{id}", response_model=schemas.Athlete)
 def read_athlete(
     *,

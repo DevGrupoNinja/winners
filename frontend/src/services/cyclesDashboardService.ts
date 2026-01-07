@@ -53,6 +53,7 @@ export interface MacroDashboardData {
     athletes: AthletesDashboard;
     wellness: WellnessDashboard;
     results: any;
+    relative_load: number | null;
 }
 
 export interface MesoDashboardData {
@@ -61,6 +62,9 @@ export interface MesoDashboardData {
     athletes: AthletesDashboard;
     wellness: WellnessDashboard;
     functional_direction: FunctionalDirection;
+    target_er: number | null;
+    target_re: number | null;
+    relative_load: number | null;
 }
 
 export interface MicroDashboardData {

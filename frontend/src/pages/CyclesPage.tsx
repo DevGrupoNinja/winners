@@ -20,6 +20,14 @@ const formatDate = (dateString?: string) => {
     }
 };
 
+const formatVolume = (meters?: number) => {
+    if (!meters && meters !== 0) return '0m';
+    if (meters >= 1000) {
+        return `${(meters / 1000).toFixed(1)}km`;
+    }
+    return `${meters.toFixed(0)}m`;
+};
+
 // --- Sub-components para o Design System Winners ---
 
 const DateTag = ({ start, end, className = "" }: { start?: string, end?: string, className?: string }) => {
@@ -222,25 +230,30 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                                 <ProgressBar value={swimming.dcr_volume} max={swimming.total_volume || 1} colorClass="bg-blue-500" />
                             </div>
                         </div>
-                    </div>
 
-                    {/* Card: Direção Funcional - Full Width */}
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
-                        <CardHeader icon={Zap} title="Direção Funcional" subtitle="Resumo das Capacidades Físico Motrizes" />
-                        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
-                            {Object.entries(funcDir).filter(([_, val]) => val !== undefined).map(([key, val]) => (
-                                <div key={key} className="p-3 md:p-4 text-center rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-orange-50/30 transition-colors">
-                                    <span className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase mb-2 leading-tight">{getFunctionalDirectionLabel(key)}</span>
-                                    <span className="text-lg md:text-xl font-black text-slate-700">{val}</span>
+                        {/* Direção Funcional - Inside Natação */}
+                        {Object.keys(funcDir).length > 0 && (
+                            <div className="mt-8 pt-6 border-t border-slate-100">
+                                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Direção Funcional</h5>
+                                <div className="flex flex-wrap gap-3">
+                                    {Object.entries(funcDir).filter(([_, val]) => val !== undefined).map(([key, val]) => (
+                                        <div key={key} className="px-4 py-2 text-center rounded-lg bg-slate-50/80 hover:bg-orange-50/50 transition-colors">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase mb-1">{getFunctionalDirectionLabel(key)}</span>
+                                            <div className="flex items-baseline justify-center gap-0.5">
+                                                <span className="text-lg font-black text-slate-700">{formatVolume(val as number).replace(/[^0-9.,]/g, '')}</span>
+                                                <span className="text-[10px] font-medium text-slate-400">{formatVolume(val as number).replace(/[0-9.,]/g, '')}</span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Card: Preparo Físico - Full Width */}
                     <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
                         <CardHeader icon={Dumbbell} title="Preparo Físico" subtitle="Carga & Tonelagem" />
-                        <div className="flex flex-wrap justify-between items-end mb-6 md:mb-8 pb-6 border-b border-slate-50 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-6 md:mb-8 pb-6 border-b border-slate-50 items-end">
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Total</span>
                                 <div className="flex items-baseline gap-1">
@@ -248,35 +261,33 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                                     <span className="text-lg font-black text-slate-400 uppercase">ton</span>
                                 </div>
                             </div>
-                            <div className="text-right flex gap-8">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
-                                    <span className="text-xl font-black text-brand-slate">{gym.total_sessions}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Média</span>
-                                    <span className="text-xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
-                                </div>
+                            <div className="flex flex-col text-right md:text-left">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
+                                <span className="text-xl font-black text-brand-slate">{gym.total_sessions}</span>
+                            </div>
+                            <div className="flex flex-col text-left md:text-right">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Média</span>
+                                <span className="text-xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
+                            </div>
+                            <div className="flex flex-col text-right">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Relativa</span>
+                                <span className="text-xl font-black text-brand-slate">
+                                    {dashboardData?.relative_load ? `${dashboardData.relative_load.toFixed(2)}x` : '-'}
+                                </span>
                             </div>
                         </div>
-                        {dashboardData?.relative_load && (
-                            <div className="bg-orange-50 px-4 py-3 rounded-xl mb-6 border border-orange-100">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-bold text-orange-700 uppercase">Carga Relativa</span>
-                                    <span className="text-lg font-black text-orange-800">{dashboardData.relative_load.toFixed(2)}x peso corporal</span>
-                                </div>
-                            </div>
-                        )}
 
-                        {/* DDR/DCR Breakdown */}
                         {(gym.ddr_explosive !== undefined || gym.dcr_max !== undefined) && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
                                 <div className="space-y-4">
-                                    <div className="flex justify-between items-center bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
-                                        <span className="text-[10px] md:text-xs font-bold text-amber-700 uppercase">DDR Total</span>
-                                        <span className="text-[10px] md:text-xs font-black text-amber-800 whitespace-nowrap">
-                                            {((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)).toFixed(0)} kg
-                                            ({gym.total_load > 0 ? (((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
+                                    <div className="flex justify-between items-baseline mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-3.5 bg-yellow-400 rounded-full"></div>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DDR TOTAL</span>
+                                        </div>
+                                        <span className="text-xs font-black text-brand-slate">
+                                            {((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)).toFixed(0)}kg
+                                            <span className="ml-1 text-[10px] font-bold text-slate-400">({gym.total_load > 0 ? (((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / gym.total_load * 100).toFixed(0) : 0}%)</span>
                                         </span>
                                     </div>
                                     <div className="space-y-3 pl-2">
@@ -287,11 +298,14 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                                     </div>
                                 </div>
                                 <div className="space-y-4">
-                                    <div className="flex justify-between items-center bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100">
-                                        <span className="text-[10px] md:text-xs font-bold text-sky-700 uppercase">DCR Total</span>
-                                        <span className="text-[10px] md:text-xs font-black text-sky-800 whitespace-nowrap">
-                                            {((gym.dcr_max || 0) + (gym.dcr_resistive || 0)).toFixed(0)} kg
-                                            ({gym.total_load > 0 ? (((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
+                                    <div className="flex justify-between items-baseline mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-3.5 bg-blue-500 rounded-full"></div>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DCR TOTAL</span>
+                                        </div>
+                                        <span className="text-xs font-black text-brand-slate">
+                                            {((gym.dcr_max || 0) + (gym.dcr_resistive || 0)).toFixed(0)}kg
+                                            <span className="ml-1 text-[10px] font-bold text-slate-400">({gym.total_load > 0 ? (((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / gym.total_load * 100).toFixed(0) : 0}%)</span>
                                         </span>
                                     </div>
                                     <div className="space-y-3 pl-2">
@@ -302,37 +316,37 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                             </div>
                         )}
                     </div>
+                </div>
 
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
-                        <CardHeader icon={Heart} title="Bem Estar" subtitle="Média do Ciclo (1-10)" />
-                        <div className="space-y-6 mt-4">
-                            <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-400" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
-                            <ProgressBar label="Fadiga (PSE)" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-400" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
-                            <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
-                            <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-400" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
+                    <CardHeader icon={Heart} title="Bem Estar" subtitle="Média do Ciclo (1-10)" />
+                    <div className="space-y-6 mt-4">
+                        <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-400" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
+                        <ProgressBar label="Fadiga (PSE)" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-400" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
+                        <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
+                        <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-400" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
+                    </div>
+                </div>
+
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center group col-span-1">
+                    <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 border border-orange-100 shadow-sm">
+                        <Activity size={40} className="text-brand-orange" />
+                    </div>
+                    <h4 className="text-lg font-black text-brand-slate mb-1 uppercase tracking-tight">Atletas</h4>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
+                    <div className="flex gap-4 w-full">
+                        <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                            <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
+                            <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
+                        </div>
+                        <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100">
+                            <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
+                            <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
                         </div>
                     </div>
-
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center group col-span-1">
-                        <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 border border-orange-100 shadow-sm">
-                            <Activity size={40} className="text-brand-orange" />
-                        </div>
-                        <h4 className="text-lg font-black text-brand-slate mb-1 uppercase tracking-tight">Atletas</h4>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
-                        <div className="flex gap-4 w-full">
-                            <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-                                <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
-                                <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
-                            </div>
-                            <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100">
-                                <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
-                                <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
-                            </div>
-                        </div>
-                        <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
-                            <span>Presença Total</span>
-                            <span className="text-brand-slate">{athletes.average_attendance.toFixed(0)}%</span>
-                        </div>
+                    <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                        <span>Presença Total</span>
+                        <span className="text-brand-slate">{athletes.average_attendance.toFixed(0)}%</span>
                     </div>
                 </div>
             </div>
@@ -456,25 +470,30 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                                 </p>
                             </div>
                         </div>
-                    </div>
 
-                    {/* Card: Capacidades Motrizes - Full Width */}
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
-                        <CardHeader icon={Zap} title="Direção Funcional" subtitle="Resumo das Capacidades Físico Motrizes" />
-                        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
-                            {Object.entries(funcDir).filter(([_, val]) => val !== undefined).map(([key, val]) => (
-                                <div key={key} className="p-3 md:p-4 text-center rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-orange-50/30 transition-colors">
-                                    <span className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase mb-2 leading-tight">{getFunctionalDirectionLabel(key)}</span>
-                                    <span className="text-lg md:text-xl font-black text-slate-700">{val}</span>
+                        {/* Direção Funcional - Inside Natação */}
+                        {Object.keys(funcDir).length > 0 && (
+                            <div className="mt-6 pt-6 border-t border-slate-100">
+                                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Direção Funcional</h5>
+                                <div className="flex flex-wrap gap-3">
+                                    {Object.entries(funcDir).filter(([_, val]) => val !== undefined).map(([key, val]) => (
+                                        <div key={key} className="px-4 py-2 text-center rounded-lg bg-slate-50/80 hover:bg-orange-50/50 transition-colors">
+                                            <span className="block text-[9px] font-bold text-slate-400 uppercase mb-1">{getFunctionalDirectionLabel(key)}</span>
+                                            <div className="flex items-baseline justify-center gap-0.5">
+                                                <span className="text-lg font-black text-slate-700">{formatVolume(val as number).replace(/[^0-9.,]/g, '')}</span>
+                                                <span className="text-[10px] font-medium text-slate-400">{formatVolume(val as number).replace(/[0-9.,]/g, '')}</span>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Card: Preparo Físico (Academia) - Full Width */}
                     <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
                         <CardHeader icon={Dumbbell} title="Preparo Físico" subtitle="Métricas de Força" />
-                        <div className="flex flex-wrap justify-between items-end mb-6 md:mb-8 pb-6 border-b border-slate-50 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-6 md:mb-8 pb-6 border-b border-slate-50 items-end">
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Consolidada</span>
                                 <div className="flex items-baseline gap-1">
@@ -482,102 +501,110 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                                     <span className="text-lg font-black text-slate-400 uppercase">ton</span>
                                 </div>
                             </div>
-                            <div className="text-right flex gap-8">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
-                                    <span className="text-xl font-black text-brand-slate">{gym.total_sessions}</span>
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Carga Média</span>
-                                    <span className="text-xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
-                                </div>
+                            <div className="flex flex-col text-right md:text-left">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
+                                <span className="text-xl font-black text-brand-slate">{gym.total_sessions}</span>
+                            </div>
+                            <div className="flex flex-col text-left md:text-right">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Carga Média</span>
+                                <span className="text-xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
+                            </div>
+                            <div className="flex flex-col text-right">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Relativa</span>
+                                <span className="text-xl font-black text-brand-slate">
+                                    {dashboardData?.relative_load ? `${dashboardData.relative_load.toFixed(2)}x` : '-'}
+                                </span>
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
-                                    <span className="text-[10px] md:text-xs font-bold text-amber-700 uppercase">DDR Total</span>
-                                    <span className="text-[10px] md:text-xs font-black text-amber-800 whitespace-nowrap">
-                                        {((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)).toFixed(0)} kg
-                                        ({gym.total_load > 0 ? (((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
-                                    </span>
+                        {/* DDR/DCR Breakdown */}
+                        {(gym.ddr_explosive !== undefined || gym.dcr_max !== undefined) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-baseline mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-3.5 bg-yellow-400 rounded-full"></div>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DDR TOTAL</span>
+                                        </div>
+                                        <span className="text-xs font-black text-brand-slate">
+                                            {((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)).toFixed(0)}kg
+                                            <span className="ml-1 text-[10px] font-bold text-slate-400">({gym.total_load > 0 ? (((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / gym.total_load * 100).toFixed(0) : 0}%)</span>
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3 pl-2">
+                                        <ProgressBar key="meso-ddr-explosive" label="Força Explosiva" value={gym.ddr_explosive || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosive || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="meso-ddr-explosiva" label="Explosiva" value={gym.ddr_explosiva || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosiva || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="meso-ddr-fast" label="Força Rápida" value={gym.ddr_fast || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_fast || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="meso-ddr-res" label="Resistência Força" value={gym.ddr_resistance || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_resistance || 0).toFixed(0)} kg`} />
+                                    </div>
                                 </div>
-                                <div className="space-y-3 pl-2">
-                                    <ProgressBar key="meso-ddr-explosive" label="Força Explosiva" value={gym.ddr_explosive || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosive || 0).toFixed(0)} kg`} />
-                                    <ProgressBar key="meso-ddr-explosiva" label="Explosiva" value={gym.ddr_explosiva || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosiva || 0).toFixed(0)} kg`} />
-                                    <ProgressBar key="meso-ddr-fast" label="Força Rápida" value={gym.ddr_fast || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_fast || 0).toFixed(0)} kg`} />
-                                    <ProgressBar key="meso-ddr-res" label="Resistência Força" value={gym.ddr_resistance || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_resistance || 0).toFixed(0)} kg`} />
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-baseline mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-1 h-3.5 bg-blue-500 rounded-full"></div>
+                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DCR TOTAL</span>
+                                        </div>
+                                        <span className="text-xs font-black text-brand-slate">
+                                            {((gym.dcr_max || 0) + (gym.dcr_resistive || 0)).toFixed(0)}kg
+                                            <span className="ml-1 text-[10px] font-bold text-slate-400">({gym.total_load > 0 ? (((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / gym.total_load * 100).toFixed(0) : 0}%)</span>
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3 pl-2">
+                                        <ProgressBar key="meso-dcr-max" label="Força Máxima" value={gym.dcr_max || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_max || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="meso-dcr-res" label="Força Resistiva" value={gym.dcr_resistive || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_resistive || 0).toFixed(0)} kg`} />
+                                    </div>
                                 </div>
                             </div>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100">
-                                    <span className="text-[10px] md:text-xs font-bold text-sky-700 uppercase">DCR Total</span>
-                                    <span className="text-[10px] md:text-xs font-black text-sky-800 whitespace-nowrap">
-                                        {((gym.dcr_max || 0) + (gym.dcr_resistive || 0)).toFixed(0)} kg
-                                        ({gym.total_load > 0 ? (((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
-                                    </span>
-                                </div>
-                                <div className="space-y-3 pl-2">
-                                    <ProgressBar key="meso-dcr-max" label="Força Máxima" value={gym.dcr_max || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_max || 0).toFixed(0)} kg`} />
-                                    <ProgressBar key="meso-dcr-res" label="Força Resistiva" value={gym.dcr_resistive || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_resistive || 0).toFixed(0)} kg`} />
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
+                </div>
 
-                    {/* Row: Bem Estar & Atletas - Shared Width */}
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
-                        <CardHeader icon={Heart} title="Bem Estar" subtitle="Média dos Atletas (1-10)" />
-                        <div className="space-y-5">
-                            <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-500" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
-                            <ProgressBar label="Fadiga Acumulada" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-500" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
-                            <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
-                            <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-500" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
-                        </div>
-                        <div className="mt-8 pt-4 md:pt-6 border-t border-slate-100">
-                            <div className="flex items-center gap-2 text-[10px] md:text-xs text-amber-600 bg-amber-50 p-2 rounded-lg font-medium">
-                                <AlertTriangle size={14} className="flex-shrink-0" /> <span className="truncate">Fadiga alta detectada no ciclo.</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
-                        <CardHeader icon={Users} title="Atletas" subtitle="Frequência & Evolução" />
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="p-3 md:p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                                    <span className="block text-2xl md:text-3xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
-                                    <span className="text-[8px] md:text-[10px] font-bold text-emerald-700 uppercase tracking-wide mt-2 block">Evoluíram</span>
-                                </div>
-                                <div className="p-3 md:p-4 bg-rose-50 rounded-2xl border border-rose-100 text-center">
-                                    <span className="block text-2xl md:text-3xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
-                                    <span className="text-[8px] md:text-[10px] font-bold text-rose-700 uppercase tracking-wide mt-2 block">Pioraram</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4 py-4 border-y border-slate-50">
-                                <div className="flex justify-between items-center text-[10px] md:text-xs">
-                                    <span className="text-slate-500 font-medium uppercase">Presença Média</span>
-                                    <span className="font-black text-slate-800">{athletes.average_attendance.toFixed(0)}%</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Peso Corporal</h5>
-                                <div className="flex items-center justify-between text-[10px] md:text-xs">
-                                    <span className="text-emerald-600 font-bold flex items-center gap-1"><TrendingUp size={12} className="flex-shrink-0" /> <span className="truncate">Ganharam Peso</span></span>
-                                    <span className="font-black text-slate-700 whitespace-nowrap">{athletes.weight_gained_count || 0} Atletas</span>
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] md:text-xs">
-                                    <span className="text-rose-600 font-bold flex items-center gap-1"><TrendingUp size={12} className="rotate-180 flex-shrink-0" /> <span className="truncate">Perderam Peso</span></span>
-                                    <span className="font-black text-slate-700 whitespace-nowrap">{athletes.weight_lost_count || 0} Atletas</span>
-                                </div>
-                            </div>
-                        </div>
+                {/* Row: Bem Estar & Atletas - Shared Width */}
+                <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
+                    <CardHeader icon={Heart} title="Bem Estar" subtitle="Média dos Atletas (1-10)" />
+                    <div className="space-y-5">
+                        <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-500" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
+                        <ProgressBar label="Fadiga Acumulada" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-500" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
+                        <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
+                        <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-500" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
                     </div>
 
                 </div>
+
+                <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
+                    <CardHeader icon={Users} title="Atletas" subtitle="Frequência & Evolução" />
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 md:p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                                <span className="block text-2xl md:text-3xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
+                                <span className="text-[8px] md:text-[10px] font-bold text-emerald-700 uppercase tracking-wide mt-2 block">Evoluíram</span>
+                            </div>
+                            <div className="p-3 md:p-4 bg-rose-50 rounded-2xl border border-rose-100 text-center">
+                                <span className="block text-2xl md:text-3xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
+                                <span className="text-[8px] md:text-[10px] font-bold text-rose-700 uppercase tracking-wide mt-2 block">Pioraram</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 py-4 border-y border-slate-50">
+                            <div className="flex justify-between items-center text-[10px] md:text-xs">
+                                <span className="text-slate-500 font-medium uppercase">Presença Média</span>
+                                <span className="font-black text-slate-800">{athletes.average_attendance.toFixed(0)}%</span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Peso Corporal</h5>
+                            <div className="flex items-center justify-between text-[10px] md:text-xs">
+                                <span className="text-emerald-600 font-bold flex items-center gap-1"><TrendingUp size={12} className="flex-shrink-0" /> <span className="truncate">Ganharam Peso</span></span>
+                                <span className="font-black text-slate-700 whitespace-nowrap">{athletes.weight_gained_count || 0} Atletas</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px] md:text-xs">
+                                <span className="text-rose-600 font-bold flex items-center gap-1"><TrendingUp size={12} className="rotate-180 flex-shrink-0" /> <span className="truncate">Perderam Peso</span></span>
+                                <span className="font-black text-slate-700 whitespace-nowrap">{athletes.weight_lost_count || 0} Atletas</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     );
@@ -683,7 +710,7 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                     <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col col-span-1 lg:col-span-2">
                         <CardHeader icon={Dumbbell} title="Preparação Física" subtitle="Força & Potência" />
                         {/* KPIs Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Total</span>
                                 <div className="flex items-baseline gap-1">
@@ -699,93 +726,100 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Peso Médio</span>
                                 <span className="text-3xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
                             </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Relativa</span>
+                                <span className="text-3xl font-black text-brand-slate">
+                                    {dashboardData?.relative_load ? `${dashboardData.relative_load.toFixed(2)}x` : '-'}
+                                </span>
+                            </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                             <ProgressBar label="DDR" value={(gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)} max={gym.total_load || 1} colorClass="bg-emerald-500" subValue={`${(((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / 1000).toFixed(1)}t`} />
                             <ProgressBar label="DCR" value={(gym.dcr_max || 0) + (gym.dcr_resistive || 0)} max={gym.total_load || 1} colorClass="bg-blue-500" subValue={`${(((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / 1000).toFixed(1)}t`} />
                         </div>
                     </div>
-
-                    {/* Card: Bem Estar */}
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
-                        <CardHeader icon={Heart} title="Bem Estar" subtitle="Média do Ciclo (1-10)" />
-                        <div className="space-y-6 mt-4">
-                            <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-500" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
-                            <ProgressBar label="Fadiga (PSE)" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-500" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
-                            <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
-                            <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-500" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
-                        </div>
-                    </div>
-
-                    {/* Card: Atletas */}
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center group">
-                        <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 border border-orange-100 shadow-sm">
-                            <Activity size={40} className="text-brand-orange" />
-                        </div>
-                        <h4 className="text-lg font-black text-brand-slate mb-1 uppercase tracking-tight">Atletas</h4>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
-                        <div className="flex gap-4 w-full">
-                            <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
-                                <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
-                                <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
-                            </div>
-                            <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100 text-center">
-                                <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
-                                <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
-                            </div>
-                        </div>
-                        <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
-                            <span>Presença Média</span>
-                            <span className="text-brand-slate font-bold">{athletes.average_attendance.toFixed(0)}% de presença</span>
-                        </div>
-                    </div>
-
-                    {/* Card: Medalhas */}
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col lg:col-span-2 xl:col-span-1">
-                        <CardHeader icon={Award} title="Resultados" subtitle="Quadro de Medalhas" />
-
-                        <div className="space-y-8 flex-1">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Federado</p>
-                                <div className="flex gap-2">
-                                    <div className="flex-1 bg-yellow-50 text-yellow-700 border border-yellow-100 p-3 rounded-2xl text-center">
-                                        <span className="block text-xl font-black leading-none">3</span>
-                                        <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Ouro</span>
-                                    </div>
-                                    <div className="flex-1 bg-slate-50 text-slate-600 border border-slate-200 p-3 rounded-2xl text-center">
-                                        <span className="block text-xl font-black leading-none">18</span>
-                                        <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Prata</span>
-                                    </div>
-                                    <div className="flex-1 bg-orange-50 text-orange-800 border border-orange-100 p-3 rounded-2xl text-center">
-                                        <span className="block text-xl font-black leading-none">50</span>
-                                        <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Bronze</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="pt-6 border-t border-dashed border-slate-100">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Master</p>
-                                <div className="flex gap-2">
-                                    <div className="flex-1 bg-yellow-50 text-yellow-700 border border-yellow-100 p-3 rounded-2xl text-center">
-                                        <span className="block text-xl font-black leading-none">32</span>
-                                        <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Ouro</span>
-                                    </div>
-                                    <div className="flex-1 bg-slate-50 text-slate-600 border border-slate-200 p-3 rounded-2xl text-center">
-                                        <span className="block text-xl font-black leading-none">60</span>
-                                        <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Prata</span>
-                                    </div>
-                                    <div className="flex-1 bg-orange-50 text-orange-800 border border-orange-100 p-3 rounded-2xl text-center">
-                                        <span className="block text-xl font-black leading-none">125</span>
-                                        <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Bronze</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                 </div>
+
+                {/* Card: Bem Estar */}
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
+                    <CardHeader icon={Heart} title="Bem Estar" subtitle="Média do Ciclo (1-10)" />
+                    <div className="space-y-6 mt-4">
+                        <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-500" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
+                        <ProgressBar label="Fadiga (PSE)" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-500" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
+                        <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
+                        <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-500" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
+                    </div>
+                </div>
+
+                {/* Card: Atletas */}
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center group">
+                    <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 border border-orange-100 shadow-sm">
+                        <Activity size={40} className="text-brand-orange" />
+                    </div>
+                    <h4 className="text-lg font-black text-brand-slate mb-1 uppercase tracking-tight">Atletas</h4>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
+                    <div className="flex gap-4 w-full">
+                        <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
+                            <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
+                            <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
+                        </div>
+                        <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100 text-center">
+                            <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
+                            <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
+                        </div>
+                    </div>
+                    <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                        <span>Presença Média</span>
+                        <span className="text-brand-slate font-bold">{athletes.average_attendance.toFixed(0)}% de presença</span>
+                    </div>
+                </div>
+
+                {/* Card: Medalhas */}
+                <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col lg:col-span-2 xl:col-span-1">
+                    <CardHeader icon={Award} title="Resultados" subtitle="Quadro de Medalhas" />
+
+                    <div className="space-y-8 flex-1">
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Federado</p>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-yellow-50 text-yellow-700 border border-yellow-100 p-3 rounded-2xl text-center">
+                                    <span className="block text-xl font-black leading-none">3</span>
+                                    <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Ouro</span>
+                                </div>
+                                <div className="flex-1 bg-slate-50 text-slate-600 border border-slate-200 p-3 rounded-2xl text-center">
+                                    <span className="block text-xl font-black leading-none">18</span>
+                                    <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Prata</span>
+                                </div>
+                                <div className="flex-1 bg-orange-50 text-orange-800 border border-orange-100 p-3 rounded-2xl text-center">
+                                    <span className="block text-xl font-black leading-none">50</span>
+                                    <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Bronze</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="pt-6 border-t border-dashed border-slate-100">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Master</p>
+                            <div className="flex gap-2">
+                                <div className="flex-1 bg-yellow-50 text-yellow-700 border border-yellow-100 p-3 rounded-2xl text-center">
+                                    <span className="block text-xl font-black leading-none">32</span>
+                                    <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Ouro</span>
+                                </div>
+                                <div className="flex-1 bg-slate-50 text-slate-600 border border-slate-200 p-3 rounded-2xl text-center">
+                                    <span className="block text-xl font-black leading-none">60</span>
+                                    <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Prata</span>
+                                </div>
+                                <div className="flex-1 bg-orange-50 text-orange-800 border border-orange-100 p-3 rounded-2xl text-center">
+                                    <span className="block text-xl font-black leading-none">125</span>
+                                    <span className="text-[8px] uppercase font-black tracking-tight mt-1 opacity-70 block">Bronze</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
+
     );
 };
 

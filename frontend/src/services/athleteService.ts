@@ -76,5 +76,25 @@ export const athleteService = {
     delete: async (id: string | number) => {
         const response = await api.delete<any>(`/athletes/${id}`);
         return mapAthlete(response.data);
+    },
+
+    // --- Category Configuration ---
+    getCategories: async () => {
+        const response = await api.get<any[]>('/athletes/categories/');
+        return response.data;
+    },
+
+    createCategory: async (data: { name: string }) => {
+        const response = await api.post<any>('/athletes/categories/', data);
+        return response.data;
+    },
+
+    updateCategory: async (id: number, data: { name: string }) => {
+        const response = await api.put<any>(`/athletes/categories/${id}`, data);
+        return response.data;
+    },
+
+    deleteCategory: async (id: number) => {
+        await api.delete(`/athletes/categories/${id}`);
     }
 };

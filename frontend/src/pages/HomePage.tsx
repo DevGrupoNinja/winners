@@ -192,8 +192,8 @@ export default function HomePage() {
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                                     <Droplets size={14} className="text-sky-500" /> Piscina
                                 </h4>
-                                {data.todays_pool_sessions.length > 0 ? (
-                                    data.todays_pool_sessions.map(session => (
+                                {data.todays_pool_sessions.filter(s => s.status === 'Planned').length > 0 ? (
+                                    data.todays_pool_sessions.filter(s => s.status === 'Planned').map(session => (
                                         <div key={session.id} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-brand-orange/30 transition-all cursor-pointer" onClick={() => navigate('/training')}>
                                             <div className="flex justify-between items-start mb-3">
                                                 {session.time && <span className="text-[10px] font-black bg-white px-2 py-0.5 rounded text-slate-400 border border-slate-200 uppercase">{session.time}</span>}
@@ -213,8 +213,8 @@ export default function HomePage() {
                                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                                     <Dumbbell size={14} className="text-slate-700" /> Academia
                                 </h4>
-                                {data.todays_gym_sessions.length > 0 ? (
-                                    data.todays_gym_sessions.map(session => (
+                                {data.todays_gym_sessions.filter(s => s.status === 'Planned').length > 0 ? (
+                                    data.todays_gym_sessions.filter(s => s.status === 'Planned').map(session => (
                                         <div key={session.id} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 group hover:border-brand-orange/30 transition-all cursor-pointer" onClick={() => navigate('/gym')}>
                                             <div className="flex justify-between items-start mb-3">
                                                 {session.time && <span className="text-[10px] font-black bg-white px-2 py-0.5 rounded text-slate-400 border border-slate-200 uppercase">{session.time}</span>}

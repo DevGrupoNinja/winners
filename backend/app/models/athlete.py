@@ -37,3 +37,10 @@ class Athlete(Base):
     @property
     def name(self):
         return f"{self.first_name} {self.last_name}"
+
+
+class ConfigAthleteCategory(Base):
+    """Configuration table for athlete categories."""
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False)
+    is_active = Column(Integer, default=1)  # 1 = active, 0 = inactive (soft delete)

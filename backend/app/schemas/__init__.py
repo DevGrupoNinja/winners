@@ -1,6 +1,6 @@
 from .user import User, UserCreate, UserUpdate, UserInDB
 from .token import Token, TokenPayload
-from .athlete import Athlete, AthleteCreate, AthleteUpdate
+from .athlete import Athlete, AthleteCreate, AthleteUpdate, ConfigAthleteCategory, ConfigAthleteCategoryCreate
 from .cycles import (
     MacroCycle, MacroCycleCreate, MacroCycleUpdate,
     MesoCycle, MesoCycleCreate, MesoCycleUpdate,

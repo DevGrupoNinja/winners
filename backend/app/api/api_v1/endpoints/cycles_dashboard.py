@@ -11,137 +11,65 @@ router = APIRouter()
 
 
 def get_swimming_data(db: Session, start_date: date, end_date: date, athlete_id: Optional[int] = None) -> dict:
-    """Aggregate swimming training data for a date range.
+    """Aggregate swimming training data based on PLANNED volume.
     
-    For a specific athlete: shows volumes from series where they have feedback.
-    For all athletes (no filter): shows weighted average per feedback.
+    Team view (no athlete): Total planned volume from all sessions.
+    Athlete view: Volume from sessions where the athlete has attendance (SessionFeedback).
     """
     
     if athlete_id:
-        # Atleta específico: soma das subdivisões das séries onde tem feedback
-        feedbacks = db.query(models.SessionFeedback).join(
-            models.TrainingSession
-        ).filter(
+        # Get distinct session IDs where the athlete has feedback (attended)
+        attended_session_ids = db.query(models.SessionFeedback.session_id).filter(
+            models.SessionFeedback.athlete_id == athlete_id
+        ).distinct().subquery()
+        
+        # Get parent sessions that the athlete attended (via their executed clones)
+        sessions = db.query(models.TrainingSession).filter(
             models.TrainingSession.date >= start_date,
             models.TrainingSession.date <= end_date,
-            models.SessionFeedback.athlete_id == athlete_id,
-            models.SessionFeedback.attendance == "Present"
+            models.TrainingSession.parent_session_id.is_(None), # Only PLANNED sessions
+            models.TrainingSession.id.in_(
+                db.query(models.TrainingSession.parent_session_id).filter(
+                    models.TrainingSession.id.in_(attended_session_ids)
+                )
+            ) | models.TrainingSession.id.in_(attended_session_ids)
         ).all()
-        
-        # Contar sessões únicas
-        session_ids = set(f.session_id for f in feedbacks)
-        total_sessions = len(session_ids)
-        
-        # Coletar series_ids com feedback (exclui None para feedbacks sem série específica)
-        series_ids_with_feedback = set(f.series_id for f in feedbacks if f.series_id is not None)
-        
-        # Se não houver series_id específico, assumir que participou de todas as séries da sessão
-        # (compatibilidade com dados antigos sem series_id)
-        total_volume = 0.0
-        ddr_volume = 0.0
-        dcr_volume = 0.0
-        
-        if series_ids_with_feedback:
-            # Buscar subdivisões apenas das séries com feedback
-            series_list = db.query(models.TrainingSeries).filter(
-                models.TrainingSeries.id.in_(series_ids_with_feedback)
-            ).all()
-            
-            for series in series_list:
-                for subdiv in series.subdivisions:
-                    volume = (subdiv.distance or 0) * (subdiv.reps or 0)
-                    total_volume += volume
-                    if subdiv.type == "DDR":
-                        ddr_volume += volume
-                    elif subdiv.type == "DCR":
-                        dcr_volume += volume
-        else:
-            # Fallback: sem series_id, usar todas as séries das sessões (dados antigos)
-            for session_id in session_ids:
-                session = db.query(models.TrainingSession).filter(
-                    models.TrainingSession.id == session_id
-                ).first()
-                if session:
-                    for series in session.series:
-                        for subdiv in series.subdivisions:
-                            volume = (subdiv.distance or 0) * (subdiv.reps or 0)
-                            total_volume += volume
-                            if subdiv.type == "DDR":
-                                ddr_volume += volume
-                            elif subdiv.type == "DCR":
-                                dcr_volume += volume
     else:
-        # Todos os atletas: média por atleta único
-        # Cada atleta contribui com o volume das séries onde tem feedback
-        
-        feedbacks = db.query(models.SessionFeedback).join(
-            models.TrainingSession
-        ).filter(
+        # Team view: all planned sessions
+        sessions = db.query(models.TrainingSession).filter(
             models.TrainingSession.date >= start_date,
             models.TrainingSession.date <= end_date,
-            models.SessionFeedback.attendance == "Present"
+            models.TrainingSession.parent_session_id.is_(None)
         ).all()
+    
+    total_volume = 0.0
+    ddr_volume = 0.0
+    dcr_volume = 0.0
+    
+    session_ids = set()
+    
+    for session in sessions:
+        session_ids.add(session.id)
         
-        session_ids = set(f.session_id for f in feedbacks)
-        total_sessions = len(session_ids)
-        unique_athletes = set(f.athlete_id for f in feedbacks)
-        total_unique_athletes = len(unique_athletes)
-        
-        # Calcular volume total por atleta
-        # Para cada atleta, somar o volume das séries onde tem feedback
-        athlete_volumes = {}  # athlete_id -> {total, ddr, dcr}
-        
-        for f in feedbacks:
-            if f.athlete_id not in athlete_volumes:
-                athlete_volumes[f.athlete_id] = {"total": 0.0, "ddr": 0.0, "dcr": 0.0}
-            
-            if f.series_id:
-                series = db.query(models.TrainingSeries).filter(
-                    models.TrainingSeries.id == f.series_id
-                ).first()
-                if series:
-                    for subdiv in series.subdivisions:
-                        volume = (subdiv.distance or 0) * (subdiv.reps or 0)
-                        athlete_volumes[f.athlete_id]["total"] += volume
-                        if subdiv.type == "DDR":
-                            athlete_volumes[f.athlete_id]["ddr"] += volume
-                        elif subdiv.type == "DCR":
-                            athlete_volumes[f.athlete_id]["dcr"] += volume
-        
-        # Se nenhum feedback tem series_id, fallback para volume por sessão
-        if not any(f.series_id for f in feedbacks):
-            for f in feedbacks:
-                if f.athlete_id not in athlete_volumes:
-                    athlete_volumes[f.athlete_id] = {"total": 0.0, "ddr": 0.0, "dcr": 0.0}
+        # Calculate volume from series -> subdivisions
+        for series in session.series:
+            for subdiv in series.subdivisions:
+                volume = (subdiv.distance or 0) * (subdiv.reps or 0)
+                total_volume += volume
                 
-                session = db.query(models.TrainingSession).filter(
-                    models.TrainingSession.id == f.session_id
-                ).first()
-                if session:
-                    for series in session.series:
-                        for subdiv in series.subdivisions:
-                            volume = (subdiv.distance or 0) * (subdiv.reps or 0)
-                            athlete_volumes[f.athlete_id]["total"] += volume
-                            if subdiv.type == "DDR":
-                                athlete_volumes[f.athlete_id]["ddr"] += volume
-                            elif subdiv.type == "DCR":
-                                athlete_volumes[f.athlete_id]["dcr"] += volume
-        
-        # Calcular médias
-        if total_unique_athletes > 0:
-            total_volume = sum(v["total"] for v in athlete_volumes.values()) / total_unique_athletes
-            ddr_volume = sum(v["ddr"] for v in athlete_volumes.values()) / total_unique_athletes
-            dcr_volume = sum(v["dcr"] for v in athlete_volumes.values()) / total_unique_athletes
-        else:
-            total_volume = 0
-            ddr_volume = 0
-            dcr_volume = 0
+                if subdiv.type == "DDR":
+                    ddr_volume += volume
+                elif subdiv.type == "DCR":
+                    dcr_volume += volume
+    
+    total_sessions = len(session_ids)
     
     # Convert to km
     total_volume_km = total_volume / 1000
     ddr_volume_km = ddr_volume / 1000
     dcr_volume_km = dcr_volume / 1000
     
+    # Average meters per session (based on plan)
     avg_per_session = total_volume / total_sessions if total_sessions > 0 else 0
     
     return {
@@ -153,40 +81,42 @@ def get_swimming_data(db: Session, start_date: date, end_date: date, athlete_id:
     }
 
 
+
 def get_target_er_re(db: Session, start_date: date, end_date: date) -> dict:
-    """Calculate average ER and RE from subdivisions of completed sessions with feedback.
+    """Calculate weighted average ER and RE from PLANNED subdivisions.
     
-    Only considers sessions that are completed and have at least one athlete feedback.
+    Weighted by subdivision distance (volume).
+    Considers all sessions in the date range.
     """
     sessions = db.query(models.TrainingSession).filter(
         models.TrainingSession.date >= start_date,
         models.TrainingSession.date <= end_date,
-        models.TrainingSession.status == "Completed"
+        models.TrainingSession.parent_session_id.is_(None) # Only count PLANNED sessions
     ).all()
     
-    er_values = []
-    re_values = []
+    total_er_weighted = 0.0
+    total_er_distance = 0.0
+    
+    total_re_weighted = 0.0
+    total_re_distance = 0.0
     
     for session in sessions:
-        # Check if session has any feedback (athlete participated)
-        has_feedback = db.query(models.SessionFeedback).filter(
-            models.SessionFeedback.session_id == session.id,
-            models.SessionFeedback.attendance == "Present"
-        ).first()
-        
-        if not has_feedback:
-            continue
-        
-        # Get all subdivisions from this session's series
         for series in session.series:
             for subdiv in series.subdivisions:
+                dist = subdiv.distance or 0
+                if dist <= 0:
+                    continue
+                
                 if subdiv.da_er is not None:
-                    er_values.append(subdiv.da_er)
+                    total_er_weighted += (subdiv.da_er * dist)
+                    total_er_distance += dist
+                
                 if subdiv.da_re is not None:
-                    re_values.append(subdiv.da_re)
+                    total_re_weighted += (subdiv.da_re * dist)
+                    total_re_distance += dist
     
-    avg_er = sum(er_values) / len(er_values) if er_values else None
-    avg_re = sum(re_values) / len(re_values) if re_values else None
+    avg_er = total_er_weighted / total_er_distance if total_er_distance > 0 else None
+    avg_re = total_re_weighted / total_re_distance if total_re_distance > 0 else None
     
     return {
         "target_er": round(avg_er, 2) if avg_er is not None else None,
@@ -197,8 +127,8 @@ def get_target_er_re(db: Session, start_date: date, end_date: date) -> dict:
 def get_gym_data(db: Session, start_date: date, end_date: date, athlete_id: Optional[int] = None, detailed: bool = False) -> dict:
     """Aggregate gym training data for a date range.
     
-    For a specific athlete: shows their individual totals.
-    For all athletes (no filter): shows weighted average per athlete (total load / unique athletes with feedback).
+    Total Load is the ABSOLUTE SUM of all loads lifted by the team (or athlete).
+    It is NOT an average per athlete anymore.
     """
     
     # DDR/DCR category mapping
@@ -236,88 +166,46 @@ def get_gym_data(db: Session, start_date: date, end_date: date, athlete_id: Opti
         elif capacity == "Força Resistiva":
             dcr_resistive += load_sum
     
-    if athlete_id:
-        # Atleta específico: soma da carga dele nas sessões onde participou
-        sessions = db.query(models.GymSession).filter(
-            models.GymSession.date >= start_date,
-            models.GymSession.date <= end_date
-        ).all()
+    # Common query for sessions in range
+    sessions = db.query(models.GymSession).filter(
+        models.GymSession.date >= start_date,
+        models.GymSession.date <= end_date
+    ).all()
+    
+    total_load = 0.0
+    sessions_with_feedback_count = 0
+    
+    for session in sessions:
+        session_has_relevant_feedback = False
         
-        total_load = 0.0
-        sessions_count = 0
-        
-        for session in sessions:
-            athlete_in_session = False
-            for feedback in session.feedbacks:
-                if feedback.athlete_id != int(athlete_id):
-                    continue
+        for feedback in session.feedbacks:
+            # Filter by athlete if requested
+            if athlete_id and feedback.athlete_id != int(athlete_id):
+                continue
+            
+            if feedback.performed_loads:
+                # Mark session as having feedback (for average calculation)
+                session_has_relevant_feedback = True
                 
-                athlete_in_session = True
-                if feedback.performed_loads:
-                    for exercise_name, loads in feedback.performed_loads.items():
-                        if isinstance(loads, list):
-                            load_sum = sum(loads)
-                            total_load += load_sum
-                            if detailed:
-                                capacity = get_exercise_capacity(session, exercise_name)
-                                add_to_breakdown(capacity, load_sum)
-            
-            if athlete_in_session:
-                sessions_count += 1
+                # Sum loads
+                for exercise_name, loads in feedback.performed_loads.items():
+                    if isinstance(loads, list):
+                        load_sum = sum(loads)
+                        total_load += load_sum
+                        if detailed:
+                            capacity = get_exercise_capacity(session, exercise_name)
+                            add_to_breakdown(capacity, load_sum)
         
-        total_sessions = sessions_count
-        avg_load = total_load / total_sessions if total_sessions > 0 else 0
-    else:
-        # Todos os atletas: média por atleta = soma de todas cargas / número de atletas únicos com feedback
-        sessions = db.query(models.GymSession).filter(
-            models.GymSession.date >= start_date,
-            models.GymSession.date <= end_date
-        ).all()
-        
-        total_load = 0.0
-        athletes_with_feedback = set()
-        sessions_with_feedback = 0
-        
-        for session in sessions:
-            has_feedback = False
-            for feedback in session.feedbacks:
-                if feedback.performed_loads:
-                    has_feedback = True
-                    athletes_with_feedback.add(feedback.athlete_id)
-                    for exercise_name, loads in feedback.performed_loads.items():
-                        if isinstance(loads, list):
-                            load_sum = sum(loads)
-                            total_load += load_sum
-                            if detailed:
-                                capacity = get_exercise_capacity(session, exercise_name)
-                                add_to_breakdown(capacity, load_sum)
-            
-            if has_feedback:
-                sessions_with_feedback += 1
-        
-        # Média por atleta
-        num_athletes = len(athletes_with_feedback)
-        total_sessions = sessions_with_feedback
-        
-        if num_athletes > 0:
-            # Média = carga por atleta por sessão
-            avg_load = (total_load / num_athletes) / total_sessions if total_sessions > 0 else 0
-            total_load = total_load / num_athletes  # Mostrar média no total também
-            # Also average the breakdown
-            ddr_explosive = ddr_explosive / num_athletes
-            ddr_explosiva = ddr_explosiva / num_athletes
-            ddr_fast = ddr_fast / num_athletes
-            ddr_resistance = ddr_resistance / num_athletes
-            dcr_max = dcr_max / num_athletes
-            dcr_resistive = dcr_resistive / num_athletes
-        else:
-            avg_load = 0
-            total_load = 0
+        if session_has_relevant_feedback:
+            sessions_with_feedback_count += 1
+    
+    # Average load per realized session
+    avg_load = total_load / sessions_with_feedback_count if sessions_with_feedback_count > 0 else 0
     
     result = {
         "total_load": round(total_load, 2),
-        "total_sessions": total_sessions,
-        "average_load": round(avg_load, 2),  # avg_load is already total_load/sessions (or per-athlete for aggregate)
+        "total_sessions": sessions_with_feedback_count,
+        "average_load": round(avg_load, 2),
     }
     
     if detailed:
@@ -444,75 +332,47 @@ def get_functional_direction_data(db: Session, start_date: date, end_date: date,
     """
     Aggregate functional direction data from training subdivisions.
     
-    Returns **counts** (integers) for each functional base configured in the system,
+    Returns **volume** (float, in meters) for each functional base configured in the system,
     based on the functional_base field in TrainingSubdivision.
     Only shows bases that are configured in ConfigFunctionalDirectionRange.
     
-    If athlete_id is provided, only count subdivisions from series where the athlete has feedback.
+    Considers all PLANNED subdivisions in the date range.
     """
     
     # Get all configured functional directions from the system
     configured_directions = db.query(models.ConfigFunctionalDirectionRange).all()
     
-    # Initialize direction counts with ONLY configured directions
-    direction_counts: dict[str, int] = {}
+    # Initialize direction volumes with ONLY configured directions
+    direction_volumes: dict[str, float] = {}
     direction_name_map: dict[str, str] = {}  # Maps normalized key to original name
     
     for config in configured_directions:
         original_name = config.direction
         normalized = original_name.lower().replace("á", "a").replace("é", "e").replace("ó", "o").replace(" ", "_")
-        direction_counts[original_name] = 0
+        direction_volumes[original_name] = 0.0
         direction_name_map[normalized] = original_name
     
-    if athlete_id:
-        # For specific athlete: only count subdivisions from series where they have feedback
-        feedbacks = db.query(models.SessionFeedback).join(
-            models.TrainingSession
-        ).filter(
-            models.TrainingSession.date >= start_date,
-            models.TrainingSession.date <= end_date,
-            models.SessionFeedback.athlete_id == athlete_id,
-            models.SessionFeedback.attendance == "Present"
-        ).all()
-        
-        series_ids_with_feedback = set(f.series_id for f in feedbacks if f.series_id is not None)
-        
-        if series_ids_with_feedback:
-            subdivisions = db.query(models.TrainingSubdivision).filter(
-                models.TrainingSubdivision.series_id.in_(series_ids_with_feedback),
-                models.TrainingSubdivision.functional_base.isnot(None),
-                models.TrainingSubdivision.functional_base != ""
-            ).all()
-        else:
-            # Fallback: all subdivisions from sessions where athlete was present
-            session_ids = set(f.session_id for f in feedbacks)
-            subdivisions = db.query(models.TrainingSubdivision).join(
-                models.TrainingSeries
-            ).join(
-                models.TrainingSession
-            ).filter(
-                models.TrainingSession.id.in_(session_ids),
-                models.TrainingSubdivision.functional_base.isnot(None),
-                models.TrainingSubdivision.functional_base != ""
-            ).all()
-    else:
-        # All athletes: all subdivisions from completed sessions in date range
-        subdivisions = db.query(models.TrainingSubdivision).join(
-            models.TrainingSeries
-        ).join(
-            models.TrainingSession
-        ).filter(
-            models.TrainingSession.date >= start_date,
-            models.TrainingSession.date <= end_date,
-            models.TrainingSession.status == "Completed",
-            models.TrainingSubdivision.functional_base.isnot(None),
-            models.TrainingSubdivision.functional_base != ""
-        ).all()
+    # All athletes/team: all subdivisions from sessions in date range
+    subdivisions = db.query(models.TrainingSubdivision).join(
+        models.TrainingSeries
+    ).join(
+        models.TrainingSession
+    ).filter(
+        models.TrainingSession.date >= start_date,
+        models.TrainingSession.date <= end_date,
+        models.TrainingSession.parent_session_id.is_(None), # Only count PLANNED sessions
+        models.TrainingSubdivision.functional_base.isnot(None),
+        models.TrainingSubdivision.functional_base != ""
+    ).all()
     
-    # Count occurrences for each functional base
+    # Sum volume for each functional base
     for subdiv in subdivisions:
         fb = (subdiv.functional_base or "").strip()
         if not fb:
+            continue
+            
+        volume = (subdiv.distance or 0) * (subdiv.reps or 0)
+        if volume <= 0:
             continue
         
         # Normalize the functional base name for matching
@@ -522,20 +382,62 @@ def get_functional_direction_data(db: Session, start_date: date, end_date: date,
         matched = False
         for normalized_key, original_name in direction_name_map.items():
             if fb_normalized == normalized_key:
-                direction_counts[original_name] += 1
+                direction_volumes[original_name] += volume
                 matched = True
                 break
         
         # If no exact match, try pattern matching against configured directions
         if not matched:
-            fb_lower = fb.lower()
             for normalized_key, original_name in direction_name_map.items():
                 # Check if the subdivision's functional_base contains the direction name
                 if normalized_key in fb_normalized or fb_normalized in normalized_key:
-                    direction_counts[original_name] += 1
+                    direction_volumes[original_name] += volume
                     break
     
-    return direction_counts
+    return direction_volumes
+
+
+def calculate_relative_load(db: Session, start_date: date, end_date: date, total_load: float, athlete_id: Optional[int] = None) -> Optional[float]:
+    """Calculate relative load (Total Load / Body Weight).
+    
+    If athlete_id is provided: Load / Athlete's Weight.
+    If no athlete_id (Team): Total Team Load / Sum of weights of all Active athletes.
+    """
+    if total_load <= 0:
+        return None
+
+    total_weight = 0.0
+    
+    if athlete_id:
+        # Specific athlete weight
+        assessment = db.query(models.Assessment).filter(
+            models.Assessment.athlete_id == athlete_id,
+            models.Assessment.date <= end_date, # Use most recent relative to cycle end
+            models.Assessment.weight.isnot(None)
+        ).order_by(models.Assessment.date.desc()).first()
+        
+        if assessment and assessment.weight:
+            total_weight = assessment.weight
+    else:
+        # Team weight (Sum of all active athletes' latest weight)
+        # 1. Get all active athletes
+        active_athletes = db.query(models.Athlete).filter(models.Athlete.status == "Active").all()
+        
+        for athlete in active_athletes:
+            # Get latest weight for each athlete
+            assessment = db.query(models.Assessment).filter(
+                models.Assessment.athlete_id == athlete.id,
+                models.Assessment.date <= end_date,
+                models.Assessment.weight.isnot(None)
+            ).order_by(models.Assessment.date.desc()).first()
+            
+            if assessment and assessment.weight:
+                total_weight += assessment.weight
+
+    if total_weight > 0:
+        return round(total_load / total_weight, 2)
+    
+    return None
 
 
 @router.get("/macros/{id}/dashboard", response_model=schemas.MacroDashboardResponse)
@@ -557,12 +459,15 @@ def get_macro_dashboard(
     athletes = get_athletes_data(db, macro.start_date, macro.end_date)
     wellness = get_wellness_data(db, macro.start_date, macro.end_date)
     
+    relative_load = calculate_relative_load(db, macro.start_date, macro.end_date, gym["total_load"])
+    
     return {
         "swimming": swimming,
         "gym": gym,
         "athletes": athletes,
         "wellness": wellness,
         "results": {},
+        "relative_load": relative_load,
     }
 
 
@@ -587,6 +492,8 @@ def get_meso_dashboard(
     functional_direction = get_functional_direction_data(db, meso.start_date, meso.end_date, None)
     target_er_re = get_target_er_re(db, meso.start_date, meso.end_date)
     
+    relative_load = calculate_relative_load(db, meso.start_date, meso.end_date, gym["total_load"])
+    
     return {
         "swimming": swimming,
         "gym": gym,
@@ -595,6 +502,7 @@ def get_meso_dashboard(
         "functional_direction": functional_direction,
         "target_er": target_er_re["target_er"],
         "target_re": target_er_re["target_re"],
+        "relative_load": relative_load,
     }
 
 
@@ -620,19 +528,7 @@ def get_micro_dashboard(
     wellness = get_wellness_data(db, micro.start_date, micro.end_date, athlete_id)
     functional_direction = get_functional_direction_data(db, micro.start_date, micro.end_date, athlete_id)
     
-    # Calculate relative load (load / body weight)
-    relative_load = None
-    if athlete_id and gym["total_load"] > 0:
-        # Get most recent assessment for this athlete in the cycle
-        assessment = db.query(models.Assessment).filter(
-            models.Assessment.athlete_id == athlete_id,
-            models.Assessment.date >= micro.start_date,
-            models.Assessment.date <= micro.end_date,
-            models.Assessment.weight.isnot(None)
-        ).order_by(models.Assessment.date.desc()).first()
-        
-        if assessment and assessment.weight:
-            relative_load = round(gym["total_load"] / assessment.weight, 2)
+    relative_load = calculate_relative_load(db, micro.start_date, micro.end_date, gym["total_load"], athlete_id)
     
     return {
         "swimming": swimming,

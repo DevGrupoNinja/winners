@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 // ... imports ...
 import {
     User,
@@ -21,7 +22,8 @@ import {
     CheckCircle2,
     AlertTriangle,
     ChevronLeft,
-    Save
+    Save,
+    Settings
 } from 'lucide-react';
 import { Athlete } from '@/types';
 import { athleteService } from '@/services/athleteService'; // Import service
@@ -71,7 +73,9 @@ const validateEmail = (email: string) => {
 };
 
 export default function AthletesPage() {
+    const navigate = useNavigate();
     const [athletes, setAthletes] = useState<Athlete[]>([]); // Init empty
+    const [categories, setCategories] = useState<string[]>(['Todos']);
     const [isLoading, setIsLoading] = useState(true); // Add loading state
     const [viewMode, setViewMode] = useState<ViewMode>('LIST');
     const [searchTerm, setSearchTerm] = useState('');
@@ -90,8 +94,20 @@ export default function AthletesPage() {
         }
     };
 
+    const loadCategories = async () => {
+        try {
+            const data = await athleteService.getCategories();
+            setCategories(['Todos', ...data.map((c: any) => c.name)]);
+        } catch (error) {
+            console.error("Failed to load categories", error);
+            // Fallback to defaults if API fails
+            setCategories(['Todos', 'Absoluto', 'Infantil', 'Petiz', 'Master']);
+        }
+    };
+
     useEffect(() => {
         loadAthletes();
+        loadCategories();
     }, []);
 
     const [editingAthlete, setEditingAthlete] = useState<Athlete | null>(null);
@@ -236,17 +252,24 @@ export default function AthletesPage() {
         }
     };
 
-    const categories = ['Todos', 'Absoluto', 'Infantil', 'Petiz', 'Master'];
-
     return (
         <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-500">
 
             {viewMode === 'LIST' ? (
                 <>
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-1">
-                        <div>
-                            <h2 className="text-2xl font-black text-brand-slate tracking-tighter leading-none">Atletas</h2>
-                            <p className="text-slate-500 font-medium mt-1 text-[10px] tracking-widest">Gestão de elenco e cadastros</p>
+                        <div className="flex items-center gap-2">
+                            <div>
+                                <h2 className="text-2xl font-black text-brand-slate tracking-tighter leading-none">Atletas</h2>
+                                <p className="text-slate-500 font-medium mt-1 text-[10px] tracking-widest">Gestão de elenco e cadastros</p>
+                            </div>
+                            <button
+                                onClick={() => navigate('/athletes/settings')}
+                                className="p-1.5 text-slate-300 hover:text-brand-orange hover:bg-orange-50 rounded-lg transition-colors"
+                                title="Configurações"
+                            >
+                                <Settings size={16} />
+                            </button>
                         </div>
                         <button
                             onClick={() => handleOpenForm()}

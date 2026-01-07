@@ -8,6 +8,7 @@ import GymPage from '@/pages/GymPage';
 import CompetitionPage from '@/pages/CompetitionPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import AthletesPage from '@/pages/AthletesPage';
+import AthletesSettingsPage from '@/pages/AthletesSettingsPage';
 
 import LoginPage from '@/pages/LoginPage';
 
@@ -67,6 +68,10 @@ export const router = createBrowserRouter([
             {
                 path: 'athletes',
                 element: <AthletesPage />,
+            },
+            {
+                path: 'athletes/settings',
+                element: <AthletesSettingsPage />,
             },
         ],
     },

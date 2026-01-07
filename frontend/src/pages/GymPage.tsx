@@ -42,6 +42,7 @@ export default function GymPage() {
   const [workouts, setWorkouts] = useState<GymWorkout[]>([]);
   const [templates, setTemplates] = useState<GymTemplate[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [categories, setCategories] = useState<string[]>(['Todos', 'Geral', 'Infantil', 'Petiz']);
   const [viewMode, setViewMode] = useState<ViewMode>('LIST');
   const [currentWorkout, setCurrentWorkout] = useState<GymWorkout | null>(null);
   const [currentTemplate, setCurrentTemplate] = useState<GymTemplate | null>(null);
@@ -101,14 +102,18 @@ export default function GymPage() {
 
   const loadData = async () => {
     try {
-      const [tpls, sess, aths] = await Promise.all([
+      const [tpls, sess, aths, cats] = await Promise.all([
         gymService.getAllTemplates(),
         gymService.getAllSessions(),
-        athleteService.getAll()
+        athleteService.getAll(),
+        athleteService.getCategories().catch(() => [])
       ]);
       setTemplates(tpls);
       setWorkouts(sess);
       setAthletes(aths);
+      if (cats.length > 0) {
+        setCategories(['Todos', ...cats.map((c: any) => c.name)]);
+      }
     } catch (error) {
       console.error("Failed to load gym data", error);
     }
@@ -671,7 +676,7 @@ export default function GymPage() {
           </div>
           <div className="flex items-center gap-2 overflow-x-auto">
             <span className="text-xs text-gray-400 font-bold whitespace-nowrap">Categoria:</span>
-            {['Todos', 'Geral', 'Infantil', 'Petiz'].map(c => <FilterChip key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />)}
+            {categories.map(c => <FilterChip key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />)}
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -746,7 +751,7 @@ export default function GymPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400 font-bold">Categoria:</span>
-            {['Todos', 'Geral', 'Infantil', 'Petiz'].map(c => (
+            {categories.map(c => (
               <FilterChip key={c} label={c} active={libraryCategory === c} onClick={() => setLibraryCategory(c)} />
             ))}
           </div>
@@ -818,46 +823,24 @@ export default function GymPage() {
       <div className="animate-in slide-in-from-bottom-4 space-y-6">
         {/* Advanced Filter Bar (only for general history) */}
         {!filterByParentId && (
-          <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm space-y-6">
-            <div className="flex flex-wrap items-center gap-8">
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Período</span>
-                <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-transparent text-xs font-bold text-brand-slate outline-none p-1" />
-                  <span className="text-gray-300">—</span>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="bg-transparent text-xs font-bold text-brand-slate outline-none p-1" />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Categoria</span>
-                <div className="flex items-center gap-1.5 overflow-x-auto">
-                  {['Todos', 'Geral', 'Infantil', 'Petiz'].map(c => (
-                    <button
-                      key={c}
-                      onClick={() => setFilterCategory(c)}
-                      className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all tracking-widest uppercase ${filterCategory === c ? 'bg-brand-slate text-white shadow-md' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Período:</span>
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
+              <span className="text-gray-300 font-bold">-</span>
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
             </div>
-
-            <div className="flex items-center gap-3 border-t border-gray-50 pt-4">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Perfil do Treino</span>
-              <div className="flex items-center gap-1.5">
-                {['Todos', 'Velocidade', 'Fundo', 'Meio Fundo', 'Técnica'].map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setFilterProfile(p)}
-                    className={`px-4 py-1.5 rounded-xl text-[10px] font-black transition-all tracking-widest uppercase ${filterProfile === p ? 'bg-brand-slate text-white shadow-md' : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Categoria:</span>
+              {categories.map(c => (
+                <button
+                  key={c}
+                  onClick={() => setFilterCategory(c)}
+                  className={`px-5 py-2 rounded-full text-[10px] font-black transition-all tracking-widest uppercase whitespace-nowrap border ${filterCategory === c ? 'bg-brand-orange text-white border-brand-orange shadow-lg shadow-orange-500/20' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}
+                >
+                  {c}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -929,7 +912,7 @@ export default function GymPage() {
                     <div className="flex items-center gap-8">
                       <div className="hidden sm:block text-right">
                         <div className="text-xl font-black text-brand-slate">{attendees.length} Atletas</div>
-                        <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Elenco</div>
+                        <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Atletas</div>
                       </div>
                       <div className={`p-2 rounded-xl bg-gray-50 text-gray-400 group-hover:bg-brand-orange group-hover:text-white transition-all transform ${isExpanded ? 'rotate-180' : ''}`}>
                         <ChevronDown size={20} />
@@ -1004,7 +987,7 @@ export default function GymPage() {
                         <div className="space-y-8">
                           {/* Attendees */}
                           <div>
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 block pl-2">Elenco Participante</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 block pl-2">Atletas Participantes</span>
                             <div className="bg-gray-50/50 rounded-2xl p-5 border border-gray-100 min-h-[120px] flex flex-wrap gap-2 content-start">
                               {attendees.map(a => (
                                 <span key={a.id} className="bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-black text-brand-slate shadow-sm">{a.name}</span>
@@ -1468,7 +1451,7 @@ export default function GymPage() {
       );
     };
     const presentCount = Object.values(attendance).filter(Boolean).length;
-    const sortedAthletes = [...athletes.filter(a => a.name.toLowerCase().includes(attendanceSearch.toLowerCase()))].sort((a, b) => { const attA = attendance[a.id] ? 1 : 0; const attB = attendance[b.id] ? 1 : 0; if (attB !== attA) return attB - attA; return a.name.localeCompare(b.name); });
+    const sortedAthletes = [...athletes.filter(a => (liveWorkout.category === 'Geral' || a.category === liveWorkout.category) && a.name.toLowerCase().includes(attendanceSearch.toLowerCase()))].sort((a, b) => { const attA = attendance[a.id] ? 1 : 0; const attB = attendance[b.id] ? 1 : 0; if (attB !== attA) return attB - attA; return a.name.localeCompare(b.name); });
     return (
       <div className="h-full flex flex-col animate-in slide-in-from-right-4 relative">
         {EvaluationDrawer()}
@@ -1569,9 +1552,7 @@ export default function GymPage() {
                 <div>
                   <label className="text-xs font-bold text-gray-500 mb-1 block">Categoria</label>
                   <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:border-brand-orange outline-none">
-                    <option>Geral</option>
-                    <option>Infantil</option>
-                    <option>Petiz</option>
+                    {categories.filter(c => c !== 'Todos').map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>
@@ -1615,9 +1596,7 @@ export default function GymPage() {
                 <div>
                   <label className="text-xs font-bold text-gray-500 mb-1 block">Categoria</label>
                   <select value={formCategory} onChange={(e) => setFormCategory(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:border-brand-orange outline-none text-brand-slate">
-                    <option>Geral</option>
-                    <option>Infantil</option>
-                    <option>Petiz</option>
+                    {categories.filter(c => c !== 'Todos').map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
               </div>

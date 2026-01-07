@@ -81,7 +81,14 @@ def update_template(
     db.query(models.GymExercise).filter(models.GymExercise.template_id == id).delete()
     
     for ex_data in template_in.exercises:
-        ex_obj = models.GymExercise(**ex_data.dict(), template_id=id)
+        ex_dict = ex_data.dict()
+        # Map frontend 'physicalMotorCapacity' to backend 'muscle_group' if present
+        if 'physicalMotorCapacity' in ex_dict:
+            if not ex_dict.get('muscle_group') and ex_dict['physicalMotorCapacity']:
+                ex_dict['muscle_group'] = ex_dict['physicalMotorCapacity']
+            del ex_dict['physicalMotorCapacity']
+            
+        ex_obj = models.GymExercise(**ex_dict, template_id=id)
         db.add(ex_obj)
     
     db.commit()
