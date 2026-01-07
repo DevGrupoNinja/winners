@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Dumbbell, Calendar, Clock, ChevronRight, Save, Play, Copy, Edit2, Trash2, CheckCircle2, History, List, Users, Search, ChevronLeft, Layout, AlertTriangle, Filter, ArrowLeft, Eye, FileText, Plus, X, User, ChevronDown, ChevronUp, Scale, TrendingUp, Medal, Activity, Timer, Info, Target, Weight } from 'lucide-react';
 import { MOCK_GYM_WORKOUTS, MOCK_GYM_TEMPLATES } from '@/constants';
 import { GymWorkout, GymTemplate, WorkoutSession, GymExercise, Athlete, GymFeedback } from '@/types';
@@ -34,6 +35,9 @@ const emptyExercise: GymExercise = {
 };
 
 export default function GymPage() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<GymTab>('AGENDA');
   const [workouts, setWorkouts] = useState<GymWorkout[]>([]);
   const [templates, setTemplates] = useState<GymTemplate[]>([]);
@@ -114,7 +118,48 @@ export default function GymPage() {
     loadData();
   }, []);
 
-  const handleDetails = (workout: GymWorkout) => { setCurrentWorkout(workout); setViewMode('DETAILS'); setWorkoutDetailsTab('DETAILS'); };
+  // URL Sync Effect
+  useEffect(() => {
+    if (workouts.length > 0 && id) {
+      const workout = workouts.find(w => String(w.id) === id);
+      if (workout) {
+        if (location.pathname.includes('/session')) {
+          // 1. Is the URL ID pointing directly to an Active session?
+          if (workout.status === 'Active') {
+            setLiveWorkout(workout);
+            setViewMode('LIVE');
+          } else {
+            // 2. Or is it pointing to the Parent Plan? Check if it has an active child.
+            const activeChild = workouts.find(w =>
+              String(w.parent_session_id) === id && w.status === 'Active'
+            );
+            if (activeChild) {
+              // Redirect to the explicit session URL
+              navigate(`/gym/${activeChild.id}/session`, { replace: true });
+            } else {
+              // No active session found, fallback to details
+              navigate(`/gym/${id}`, { replace: true });
+              setCurrentWorkout(workout);
+              setViewMode('DETAILS');
+            }
+          }
+        } else {
+          // Details mode
+          setCurrentWorkout(workout);
+          setViewMode('DETAILS');
+          setWorkoutDetailsTab('DETAILS');
+        }
+      }
+    } else if (!id) {
+      if (viewMode === 'DETAILS' || viewMode === 'LIVE') {
+        setViewMode('LIST');
+        setCurrentWorkout(null);
+        // setLiveWorkout(null); // Keeping consistent with TrainingPage discussion
+      }
+    }
+  }, [id, workouts, location.pathname]);
+
+  const handleDetails = (workout: GymWorkout) => { navigate(`/gym/${workout.id}`); };
   const handleTemplateDetails = (template: GymTemplate) => { setCurrentTemplate(template); setViewMode('TEMPLATE_DETAILS'); };
 
   const handleStartRequest = (workout: GymWorkout) => {
@@ -147,6 +192,9 @@ export default function GymPage() {
         setShowStartModal(false);
         setStartWorkoutRef(null);
         setViewMode('LIVE');
+
+        navigate(`/gym/${workingSession.id}/session`);
+
         setLiveTab('EXECUTION');
         loadData();
       } catch (error) {
@@ -240,11 +288,19 @@ export default function GymPage() {
       // 2. Update session status to Completed
       await gymService.updateSession({ ...liveWorkout, status: 'Completed' });
 
-      loadData();
-      setShowFinishConfirm(false);
-      setLiveWorkout(null);
+      // Navigate first to clear URL dependency
+      navigate('/gym', { replace: true });
       setViewMode('LIST');
       setActiveTab('HISTORY');
+
+      // Clear local state
+      setLiveWorkout(null);
+      setShowFinishConfirm(false);
+
+      // Reload data after navigation has propagated
+      setTimeout(() => {
+        loadData();
+      }, 100);
     } catch (error) {
       console.error("Error finishing session", error);
     }
@@ -336,12 +392,14 @@ export default function GymPage() {
         if (currentWorkout && currentWorkout.id === editingWorkoutId) {
           setCurrentWorkout(workoutData);
         }
+        navigate(`/gym/${editingWorkoutId}`);
       } else {
         const createdSession = await gymService.createSession(workoutData, formBaseTemplateId || undefined);
         setCurrentWorkout(createdSession);
         setSuccessMessage('Treino agendado com sucesso!');
         setActiveTab('AGENDA');
-        setViewMode('DETAILS');
+        // setViewMode('DETAILS'); // Replaced by navigate
+        navigate(`/gym/${createdSession.id}`);
       }
       loadData();
       setShowCreateWorkoutModal(false);
@@ -738,7 +796,10 @@ export default function GymPage() {
     const allHistory = workouts
       .filter(w => (w.status === 'Completed' || w.status === 'Realizado'))
       .filter(w => {
-        if (filterByParentId) return w.parent_session_id === parseInt(filterByParentId);
+        if (filterByParentId) {
+          const pId = (w as any).parent_session_id || (w as any).parentSessionId;
+          return String(pId) === String(filterByParentId);
+        }
 
         const matchesCategory = filterCategory === 'Todos' || w.category === filterCategory;
         const matchesStart = !startDate || w.date >= startDate;
@@ -986,7 +1047,7 @@ export default function GymPage() {
         <div className="mb-8 pb-4 sticky top-0 bg-brand-bg z-10 pt-2">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-              <button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-white rounded-full transition-colors text-gray-500"><ArrowLeft size={24} /></button>
+              <button onClick={() => navigate('/gym')} className="p-2 hover:bg-white rounded-full transition-colors text-gray-500"><ArrowLeft size={24} /></button>
               <div>
                 <span className="inline-block bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-[10px] font-bold tracking-widest uppercase mb-2">
                   {currentWorkout.status === 'Planned' ? 'Treino Programado' : 'Sessão Realizada'}
@@ -1412,7 +1473,7 @@ export default function GymPage() {
       <div className="h-full flex flex-col animate-in slide-in-from-right-4 relative">
         {EvaluationDrawer()}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm gap-4">
-          <div className="flex items-center gap-4"><button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><ChevronLeft size={24} /></button><div><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span><h2 className="text-xl font-bold text-brand-slate">{liveWorkout.title}</h2></div><div className="text-sm text-gray-500 mt-1 flex flex-wrap gap-3 items-center"><span className="flex items-center gap-1"><Calendar size={14} /> {liveWorkout.date}</span><span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-bold text-gray-600">{liveWorkout.category}</span></div></div></div>
+          <div className="flex items-center gap-4"><button onClick={() => navigate('/gym')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><ChevronLeft size={24} /></button><div><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span><h2 className="text-xl font-bold text-brand-slate">{liveWorkout.title}</h2></div><div className="text-sm text-gray-500 mt-1 flex flex-wrap gap-3 items-center"><span className="flex items-center gap-1"><Calendar size={14} /> {liveWorkout.date}</span><span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-bold text-gray-600">{liveWorkout.category}</span></div></div></div>
           <div className="flex bg-gray-100 p-1 rounded-lg"><button onClick={() => setLiveTab('EXECUTION')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${liveTab === 'EXECUTION' ? 'bg-white text-brand-slate shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Execução</button><button onClick={() => setLiveTab('SUMMARY')} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${liveTab === 'SUMMARY' ? 'bg-white text-brand-slate shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Resumo</button></div>
           <div className="flex flex-wrap gap-3">
             <button

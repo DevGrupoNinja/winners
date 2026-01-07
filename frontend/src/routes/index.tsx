@@ -29,6 +29,14 @@ export const router = createBrowserRouter([
                 element: <TrainingPage />,
             },
             {
+                path: 'training/:id',
+                element: <TrainingPage />,
+            },
+            {
+                path: 'training/:id/session',
+                element: <TrainingPage />,
+            },
+            {
                 path: 'training/settings',
                 element: <TrainingSettingsPage />,
             },
@@ -38,6 +46,14 @@ export const router = createBrowserRouter([
             },
             {
                 path: 'gym',
+                element: <GymPage />,
+            },
+            {
+                path: 'gym/:id',
+                element: <GymPage />,
+            },
+            {
+                path: 'gym/:id/session',
                 element: <GymPage />,
             },
             {

@@ -70,6 +70,7 @@ class TrainingSessionBase(BaseModel):
     status: str | None = "Planned"
     description: str | None = None
     total_volume: float | None = 0.0
+    parent_session_id: int | None = None
 
 class TrainingSessionCreate(TrainingSessionBase):
     series: list["TrainingSeriesCreate"] = []

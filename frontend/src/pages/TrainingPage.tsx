@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Calendar, Clock, Plus, Filter, Users, ChevronDown, CheckCircle2, History, Play, StopCircle, ArrowLeft, Droplets, Trash2, Edit2, AlertTriangle, X, Check, Save, Copy, User, ChevronUp, AlertCircle, List, Eye, ChevronLeft, UserPlus, ChevronRight, Search, ChartBar, Layers, Settings } from 'lucide-react';
 import { trainingService } from '@/services/trainingService';
 import { athleteService } from '@/services/athleteService';
@@ -311,6 +311,8 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
 
 export default function TrainingPage() {
     const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+    const location = useLocation();
     const [viewMode, setViewMode] = useState<ViewMode>('LIST');
     const [mainTab, setMainTab] = useState<MainTab>('PLANS');
     const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -337,8 +339,50 @@ export default function TrainingPage() {
         loadData();
     }, []);
 
+    // URL Sync Effect - restore state from URL
+    React.useEffect(() => {
+        if (!isLoading && workouts.length > 0 && id) {
+            const workout = workouts.find(w => String(w.id) === id);
+            if (workout) {
+                if (location.pathname.includes('/session')) {
+                    // 1. Is the URL ID pointing directly to an Active session?
+                    if (workout.status === 'Active') {
+                        setLiveWorkout(workout);
+                        setViewMode('LIVE');
+                    } else {
+                        // 2. Or is it pointing to the Parent Plan? Check if it has an active child.
+                        const activeChild = workouts.find(w =>
+                            String(w.parent_session_id) === id && w.status === 'Active'
+                        );
+                        if (activeChild) {
+                            // Redirect to the explicit session URL
+                            navigate(`/training/${activeChild.id}/session`, { replace: true });
+                        } else {
+                            // No active session found, fallback to details
+                            navigate(`/training/${id}`, { replace: true });
+                            setCurrentWorkout(workout);
+                            setViewMode('DETAILS');
+                        }
+                    }
+                } else {
+                    // Details mode
+                    setCurrentWorkout(workout);
+                    setViewMode('DETAILS');
+                }
+            }
+        } else if (!id && viewMode !== 'BUILDER') {
+            // No ID in URL, reset to list (unless in builder)
+            if (viewMode === 'DETAILS' || viewMode === 'LIVE') {
+                setViewMode('LIST');
+                setCurrentWorkout(null);
+                setLiveWorkout(null);
+            }
+        }
+    }, [id, isLoading, workouts, location.pathname]);
+
     const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
     const [liveWorkout, setLiveWorkout] = useState<Workout | null>(null);
+
     const [attendance, setAttendance] = useState<Record<string, boolean>>({});
     const [attendanceSearch, setAttendanceSearch] = useState('');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -433,6 +477,8 @@ export default function TrainingPage() {
                     blocks: builderBlocks // Sending blocks to update series
                 });
                 setWorkouts(workouts.map(w => w.id === builderId ? updatedWorkout : w));
+                // Navigate to details
+                navigate(`/training/${builderId}`);
             } else {
                 // Creating new
                 const newWorkout = await trainingService.create({
@@ -445,8 +491,9 @@ export default function TrainingPage() {
                 // Check if it was a duplication (we can assume yes if we are in builder mode but it's new)
                 // Actually simple append is enough
                 setWorkouts([newWorkout, ...workouts]);
+                // Navigate to details
+                navigate(`/training/${newWorkout.id}`);
             }
-            setViewMode('LIST');
         } catch (error) {
             console.error(error);
             alert("Erro ao salvar treino");
@@ -497,6 +544,9 @@ export default function TrainingPage() {
                 setShowStartModal(false);
                 setStartWorkoutRef(null);
                 setViewMode('LIVE');
+
+                // Navigate to session URL for persistence
+                navigate(`/training/${updatedSession.id}/session`);
             } catch (err) {
                 console.error("Error starting session:", err);
                 alert("Erro ao iniciar sessão.");
@@ -585,19 +635,26 @@ export default function TrainingPage() {
                 }
             }
 
+            // Capture parent ID before clearing state
+            const parentId = liveWorkout.parentSessionId;
             await trainingService.update(liveWorkout.id, { status: 'Completed' });
 
             setShowFinishConfirm(false);
             setShowSuccessFeedback(true);
             setTimeout(async () => {
-                // Reload only after success feedback, ensuring data is committed
                 const workoutsData = await trainingService.getAll();
-                setWorkouts(workoutsData);
 
-                setShowSuccessFeedback(false);
-                setLiveWorkout(null);
+                // Navigate first to clear URL dependency
+                navigate('/training', { replace: true });
                 setViewMode('LIST');
                 setMainTab('HISTORY');
+                setShowSuccessFeedback(false);
+                setLiveWorkout(null);
+
+                // Delay state update to prevent useEffect race condition
+                setTimeout(() => {
+                    setWorkouts(workoutsData);
+                }, 100);
             }, 2000);
         } catch (error) {
             console.error(error);
@@ -776,7 +833,7 @@ export default function TrainingPage() {
                                         <div className="flex flex-col"><span className="text-[10px] text-gray-400 uppercase font-bold">Execuções</span><span className="text-sm font-semibold text-gray-700 flex items-center gap-1"><History size={14} className="text-brand-orange" /> {w.history?.length || 0}</span></div>
                                     </div>
                                     <div className="flex items-center justify-between mt-4">
-                                        <button onClick={() => { setCurrentWorkout(w); setViewMode('DETAILS'); }} className="text-sm font-medium text-gray-500 hover:text-brand-slate flex items-center gap-1"><Eye size={16} /> Detalhes</button>
+                                        <button onClick={() => navigate(`/training/${w.id}`)} className="text-sm font-medium text-gray-500 hover:text-brand-slate flex items-center gap-1"><Eye size={16} /> Detalhes</button>
                                         <button onClick={() => handleStartRequest(w)} className="bg-brand-slate hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-md"><Play size={14} fill="white" /> Iniciar treino</button>
                                     </div>
                                 </div>
@@ -1076,7 +1133,7 @@ export default function TrainingPage() {
         return (
             <div className="h-full flex flex-col animate-in slide-in-from-right-4 relative">
                 <div className="flex items-center justify-between mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex-shrink-0">
-                    <div className="flex items-center gap-4"><button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><ChevronLeft size={24} /></button><div><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span><h2 className="text-xl font-bold text-brand-slate">{liveWorkout.title}</h2></div><div className="text-xs text-gray-500 font-mono">Início: {liveWorkout.time} • {liveWorkout.blocks.length} Séries</div></div></div>
+                    <div className="flex items-center gap-4"><button onClick={() => navigate('/training')} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><ChevronLeft size={24} /></button><div><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span><h2 className="text-xl font-bold text-brand-slate">{liveWorkout.title}</h2></div><div className="text-xs text-gray-500 font-mono">Início: {liveWorkout.time} • {liveWorkout.blocks.length} Séries</div></div></div>
                     <div className="flex gap-3"><button onClick={() => { setEditingBlock(null); setShowAddSeriesModal(true); }} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold border border-blue-100 flex items-center gap-2"><UserPlus size={16} /> Adicionar série</button><button onClick={() => setShowFinishConfirm(true)} className="bg-brand-orange text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-orange-600">Finalizar treino</button></div>
                 </div>
                 <div className="flex gap-6 h-full overflow-hidden">
@@ -1208,7 +1265,7 @@ export default function TrainingPage() {
                     <header className="flex flex-col gap-6 mb-8">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <button onClick={() => setViewMode('LIST')} className="p-2 hover:bg-white rounded-full text-gray-500 hover:text-brand-slate transition-colors">
+                                <button onClick={() => navigate('/training')} className="p-2 hover:bg-white rounded-full text-gray-500 hover:text-brand-slate transition-colors">
                                     <ArrowLeft size={24} />
                                 </button>
                                 <div>
@@ -1341,11 +1398,11 @@ export default function TrainingPage() {
                                 <div className="flex items-center gap-2 mb-4">
                                     <History size={16} className="text-brand-orange" />
                                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                        Histórico de Execuções ({allHistory.filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id)).length})
+                                        Histórico de Execuções ({allHistory.filter(h => String((h.workout as any).parent_session_id || h.workout.parentSessionId) === String(currentWorkout?.id)).length})
                                     </span>
                                 </div>
 
-                                {allHistory.filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id)).length === 0 ? (
+                                {allHistory.filter(h => String((h.workout as any).parent_session_id || h.workout.parentSessionId) === String(currentWorkout?.id)).length === 0 ? (
                                     <div className="text-center py-20 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
                                         <History size={48} className="text-gray-200 mx-auto mb-4" />
                                         <p className="text-gray-400 font-bold">Nenhuma execução registrada para este plano.</p>
@@ -1353,7 +1410,7 @@ export default function TrainingPage() {
                                 ) : (
                                     <div className="space-y-4">
                                         {allHistory
-                                            .filter(h => String(h.workout.parentSessionId) === String(currentWorkout?.id))
+                                            .filter(h => String((h.workout as any).parent_session_id || h.workout.parentSessionId) === String(currentWorkout?.id))
                                             .map(session => {
                                                 const isExpanded = expandedHistoryId === session.id;
                                                 const sessionDate = parseISOToLocalDate(session.date);
