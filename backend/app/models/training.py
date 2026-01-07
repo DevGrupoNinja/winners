@@ -86,13 +86,15 @@ class TrainingSubdivision(Base):
     series = relationship("TrainingSeries", back_populates="subdivisions")
     
 # --- Live Execution / History ---
-# Storing individual feedback per athlete for a session
+# Storing individual feedback per athlete per series in a session
 class SessionFeedback(Base):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(Integer, ForeignKey("trainingsession.id"), nullable=False)
+    series_id = Column(Integer, ForeignKey("trainingseries.id"), nullable=True)  # NEW: feedback per series
     athlete_id = Column(Integer, ForeignKey("athlete.id"), nullable=False)
     
     rpe_real = Column(Float, nullable=True)
     exhaustion_level = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     attendance = Column(String) # "Present", "Absent"
+

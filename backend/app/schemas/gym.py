@@ -7,6 +7,7 @@ from datetime import date, time
 class GymExerciseBase(BaseModel):
     name: str
     muscle_group: Optional[str] = None
+    physicalMotorCapacity: Optional[str] = None  # Force type: Força Máxima, Força Explosiva, etc.
     sets: int
     reps: str
     rest_time: Optional[str] = None

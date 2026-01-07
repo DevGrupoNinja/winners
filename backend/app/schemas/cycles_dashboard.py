@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 
 class SwimmingDashboard(BaseModel):
     total_volume: float
@@ -14,11 +14,12 @@ class GymDashboard(BaseModel):
     average_load: float
 
 class GymDetailedDashboard(GymDashboard):
-    ddr_explosive: float
-    ddr_resistance: float
-    ddr_fast: float
-    dcr_max: float
-    dcr_resistive: float
+    ddr_explosive: float  # Força Explosiva
+    ddr_explosiva: float  # Explosiva (separate type)
+    ddr_resistance: float  # Resistência Força
+    ddr_fast: float  # Força Rápida
+    dcr_max: float  # Força Máxima
+    dcr_resistive: float  # Força Resistiva
 
 class AthletesDashboard(BaseModel):
     improved_count: int
@@ -33,19 +34,8 @@ class WellnessDashboard(BaseModel):
     avg_stress: Optional[float] = None
     avg_muscle_soreness: Optional[float] = None
 
-class FunctionalDirection(BaseModel):
-    aero: int = 0
-    aero_ana: int = 0
-    vo2: int = 0
-    aa: int = 0
-    res_ana: int = 0
-    tol_ana: int = 0
-    pot_ana: int = 0
-    for_rap: int = 0
-    for_exp: int = 0
-    perna: int = 0
-    braco: int = 0
-    recup: int = 0
+# Dynamic functional direction - keys come from system configuration
+FunctionalDirection = Dict[str, int]
 
 class MacroDashboardResponse(BaseModel):
     swimming: SwimmingDashboard
@@ -63,7 +53,7 @@ class MesoDashboardResponse(BaseModel):
 
 class MicroDashboardResponse(BaseModel):
     swimming: SwimmingDashboard
-    gym: GymDashboard
+    gym: GymDetailedDashboard
     athletes: AthletesDashboard
     wellness: WellnessDashboard
     functional_direction: FunctionalDirection

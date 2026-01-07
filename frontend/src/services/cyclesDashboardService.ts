@@ -37,20 +37,15 @@ export interface WellnessDashboard {
     avg_muscle_soreness: number | null;
 }
 
-export interface FunctionalDirection {
-    aero: number;
-    aero_ana: number;
-    vo2: number;
-    aa: number;
-    res_ana: number;
-    tol_ana: number;
-    pot_ana: number;
-    for_rap: number;
-    for_exp: number;
-    perna: number;
-    braco: number;
-    recup: number;
-}
+// Dynamic functional direction - keys come from system configuration
+export type FunctionalDirection = Record<string, number>;
+
+// Helper to get display label for a functional direction key
+// The backend now returns original names from ConfigFunctionalDirectionRange
+export const getFunctionalDirectionLabel = (key: string): string => {
+    return key.toUpperCase();
+};
+
 
 export interface MacroDashboardData {
     swimming: SwimmingDashboard;

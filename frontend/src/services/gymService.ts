@@ -6,6 +6,7 @@ import { GymTemplate, GymWorkout, GymExercise } from '@/types';
 const mapExerciseToBackend = (ex: GymExercise): any => ({
     name: ex.name,
     muscle_group: ex.physicalMotorCapacity,
+    physicalMotorCapacity: ex.physicalMotorCapacity,  // Also send as separate field for DDR/DCR calculation
     sets: ex.sets,
     reps: ex.reps,
     rest_time: ex.restInterval,
@@ -17,7 +18,7 @@ const mapExerciseFromBackend = (data: any, index: number): GymExercise => ({
     id: data.id ? data.id.toString() : `generated-${Date.now()}-${index}`,
     name: data.name,
     executionMode: 'Normal', // Default
-    physicalMotorCapacity: data.muscle_group || 'Força Máxima',
+    physicalMotorCapacity: data.physicalMotorCapacity || data.muscle_group || 'Força Máxima',
     sets: data.sets,
     reps: data.reps,
     restInterval: data.rest_time || '',

@@ -516,10 +516,16 @@ export default function GymPage() {
             <div>
               <label className="text-[10px] font-black text-gray-400 tracking-widest mb-1.5 block whitespace-nowrap overflow-hidden text-ellipsis">C. Físico-Motriz</label>
               <select value={ex.physicalMotorCapacity} onChange={(e) => updateExercise(ex.id, 'physicalMotorCapacity', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-xs font-bold text-brand-slate focus:border-brand-slate focus:bg-white outline-none transition-all shadow-sm">
-                <option>Força Máxima</option>
-                <option>Força Rápida</option>
-                <option>Força Explosiva</option>
-                <option>Força Resistência</option>
+                <optgroup label="DDR - Desenvolvimento">
+                  <option>Força Explosiva</option>
+                  <option>Explosiva</option>
+                  <option>Força Rápida</option>
+                  <option>Resistência Força</option>
+                </optgroup>
+                <optgroup label="DCR - Capacidade">
+                  <option>Força Máxima</option>
+                  <option>Força Resistiva</option>
+                </optgroup>
               </select>
             </div>
             <div>

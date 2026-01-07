@@ -12,7 +12,7 @@ const mapSubdivision = (data: any): WorkoutSubdivision => ({
     interval: data.interval_time || '',
     pause: data.pause_time || '',
     targetLoads: [],
-    totalDistance: data.distance || 0,  // distance already contains the total
+    totalDistance: (data.distance || 0) * (data.reps || 1),
     daRe: data.da_re ? data.da_re.toString() : '',
     daEr: data.da_er ? data.da_er.toString() : '',
     functionalBase: data.functional_base || ''

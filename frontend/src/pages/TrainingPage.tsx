@@ -28,9 +28,9 @@ const IndicatorBox = ({ label, value, alert = false }: { label: string, value: s
 );
 
 const calculateBlockStats = (subdivisions: WorkoutSubdivision[]) => {
-    const totalVolume = subdivisions.reduce((acc, sub) => acc + (sub.distance || 0), 0);
-    const ddrVolume = subdivisions.filter(s => s.type === 'DDR').reduce((acc, sub) => acc + (sub.distance || 0), 0);
-    const dcrVolume = subdivisions.filter(s => s.type === 'DCR').reduce((acc, sub) => acc + (sub.distance || 0), 0);
+    const totalVolume = subdivisions.reduce((acc, sub) => acc + ((sub.distance || 0) * (sub.seriesOrder || 1)), 0);
+    const ddrVolume = subdivisions.filter(s => s.type === 'DDR').reduce((acc, sub) => acc + ((sub.distance || 0) * (sub.seriesOrder || 1)), 0);
+    const dcrVolume = subdivisions.filter(s => s.type === 'DCR').reduce((acc, sub) => acc + ((sub.distance || 0) * (sub.seriesOrder || 1)), 0);
     return { volume: totalVolume, ddr: ddrVolume, dcr: dcrVolume };
 };
 
@@ -176,7 +176,7 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
             id: Date.now().toString(),
             type: subType,
             seriesOrder: parseInt(subReps),
-            distance: parseInt(subReps) * parseInt(subMetros),
+            distance: parseInt(subMetros),
             description: subObs,
             category: subExerc,
             interval: subTempo,
@@ -280,7 +280,7 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
                                 <tbody className="divide-y divide-gray-100 font-bold">
                                     {subdivisions.map(sub => (
                                         <tr key={sub.id} className={`${sub.type === 'DDR' ? 'bg-[#FFFACD]' : 'bg-[#E0F2FF]'} hover:opacity-90`}>
-                                            <td className="px-4 py-3 text-center">{sub.type}</td><td className="px-4 py-3 text-center">{sub.seriesOrder}</td><td className="px-4 py-3 text-center text-gray-400">x</td><td className="px-4 py-3 text-center">{sub.distance / sub.seriesOrder}</td><td className="px-4 py-3">{sub.description || '-'}</td><td className="px-4 py-3 text-center">{sub.interval || '-'}</td><td className="px-4 py-3 text-center">{sub.pause || '-'}</td><td className="px-4 py-3 text-center">{sub.totalDistance}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.daRe}</td><td className="px-4 py-3 text-center">{sub.daEr}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.functionalBase}</td><td className="px-4 py-3 text-center"><button onClick={() => handleRemoveSub(sub.id)} className="p-1 text-gray-500 hover:text-red-500"><Trash2 size={14} /></button></td>
+                                            <td className="px-4 py-3 text-center">{sub.type}</td><td className="px-4 py-3 text-center">{sub.seriesOrder}</td><td className="px-4 py-3 text-center text-gray-400">x</td><td className="px-4 py-3 text-center">{sub.distance}</td><td className="px-4 py-3">{sub.description || '-'}</td><td className="px-4 py-3 text-center">{sub.interval || '-'}</td><td className="px-4 py-3 text-center">{sub.pause || '-'}</td><td className="px-4 py-3 text-center">{sub.totalDistance}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.daRe}</td><td className="px-4 py-3 text-center">{sub.daEr}</td><td className="px-4 py-3 text-center text-brand-orange">{sub.functionalBase}</td><td className="px-4 py-3 text-center"><button onClick={() => handleRemoveSub(sub.id)} className="p-1 text-gray-500 hover:text-red-500"><Trash2 size={14} /></button></td>
                                         </tr>
                                     ))}
                                     {subdivisions.length === 0 && <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-400 italic">Nenhuma subdivisão.</td></tr>}
@@ -534,37 +534,54 @@ export default function TrainingPage() {
         if (!liveWorkout) return;
 
         try {
-            // Save feedbacks for present athletes
+            // Save feedbacks per series for each athlete
             const presentAthleteIds = Object.keys(attendance).filter(id => attendance[id]);
 
-            // Loop through present athletes and save their feedback
-            await Promise.all(presentAthleteIds.map(async (athleteId) => {
-                // Find if there is any evaluation for this athlete in any block
-                // We aggregate: take the first non-empty evaluation found, or default
-                let rpe = null;
-                let exhaustion = null;
-                let notes = '';
+            // For each block (series), save feedback for athletes that were evaluated
+            for (const block of liveWorkout.blocks) {
+                const blockEvals = sessionEvaluations[block.id] || [];
 
-                // Search in sessionEvaluations
-                for (const blockId in sessionEvaluations) {
-                    const evals = sessionEvaluations[blockId];
-                    const athleteEval = evals.find(e => e.athleteId === athleteId);
-                    if (athleteEval) {
-                        rpe = athleteEval.rpe;
-                        exhaustion = athleteEval.exhaustion;
-                        break; // Found one, use it (Backend limitation: 1 feedback per session)
-                    }
+                // Find the real series_id from the backend data
+                // The block.id might be a frontend ID, but we need the backend series ID
+                // In liveWorkout.blocks, the id should correspond to the backend series id
+                const seriesId = parseInt(block.id);
+
+                for (const athleteEval of blockEvals) {
+                    await trainingService.createFeedback(liveWorkout.id, {
+                        session_id: parseInt(liveWorkout.id),
+                        series_id: isNaN(seriesId) ? null : seriesId,
+                        athlete_id: parseInt(athleteEval.athleteId),
+                        rpe_real: athleteEval.rpe,
+                        exhaustion_level: athleteEval.exhaustion.toString(),
+                        notes: athleteEval.times || '',
+                        attendance: 'Present'
+                    });
                 }
+            }
 
-                await trainingService.createFeedback(liveWorkout.id, {
-                    session_id: parseInt(liveWorkout.id),
-                    athlete_id: parseInt(athleteId),
-                    rpe_real: rpe,
-                    exhaustion_level: exhaustion ? exhaustion.toString() : null,
-                    notes: notes,
-                    attendance: 'Present'
-                });
-            }));
+            // For present athletes that weren't evaluated in any series, 
+            // still save an attendance record (without series_id, just session-level)
+            const evaluatedAthleteIds = new Set<string>();
+            for (const blockId in sessionEvaluations) {
+                for (const eval_ of sessionEvaluations[blockId]) {
+                    evaluatedAthleteIds.add(eval_.athleteId);
+                }
+            }
+
+            for (const athleteId of presentAthleteIds) {
+                if (!evaluatedAthleteIds.has(athleteId)) {
+                    // Create attendance-only record (no evaluation)
+                    await trainingService.createFeedback(liveWorkout.id, {
+                        session_id: parseInt(liveWorkout.id),
+                        series_id: null,
+                        athlete_id: parseInt(athleteId),
+                        rpe_real: null,
+                        exhaustion_level: null,
+                        notes: '',
+                        attendance: 'Present'
+                    });
+                }
+            }
 
             await trainingService.update(liveWorkout.id, { status: 'Completed' });
 
@@ -601,17 +618,33 @@ export default function TrainingPage() {
                 return matchesCategory && matchesProfile && matchesStart && matchesEnd;
             })
             .map(w => {
-                // Map feedbacks to attendees and evaluations
+                // Map feedbacks to attendees (unique athletes) and evaluations
                 const attendees = w.feedbacks
-                    ? w.feedbacks.filter(f => f.attendance === 'Present').map(f => f.athlete_id.toString())
+                    ? Array.from(new Set(
+                        w.feedbacks
+                            .filter(f => f.attendance === 'Present')
+                            .map(f => f.athlete_id.toString())
+                    ))
                     : [];
 
                 const blockEvaluations: Record<string, SessionEvaluation[]> = {};
-                // Feedbacks are session-level, not block-level. Map to all blocks.
+                // Map feedbacks to their respective blocks using series_id
                 if (w.feedbacks && w.blocks) {
                     w.blocks.forEach(block => {
+                        const blockSeriesId = parseInt(block.id);
                         blockEvaluations[block.id] = w.feedbacks!
-                            .filter(f => f.attendance === 'Present' && f.rpe_real !== null)
+                            .filter(f =>
+                                f.attendance === 'Present' &&
+                                f.rpe_real !== null &&
+                                // Match by series_id if available, or include legacy feedbacks without series_id
+                                (f.series_id === blockSeriesId || (f.series_id === null && !isNaN(blockSeriesId)))
+                            )
+                            // For legacy data (no series_id), only include if this is the first block
+                            .filter((f, idx, arr) => {
+                                if (f.series_id !== null) return true;
+                                // For legacy feedbacks without series_id, only show in first block
+                                return block.order === 1 || block.order === w.blocks[0]?.order;
+                            })
                             .map(f => ({
                                 athleteId: f.athlete_id.toString(),
                                 athleteName: athletes.find(a => String(a.id) === String(f.athlete_id))?.name || 'Atleta',
@@ -1123,7 +1156,7 @@ export default function TrainingPage() {
                                                         {block.subdivisions.map(sub => (
                                                             <div key={sub.id} className="grid grid-cols-6 gap-4 py-4 border-b border-gray-50 last:border-0 items-center hover:bg-gray-50/50 transition-colors rounded-lg px-2 -mx-2">
                                                                 <div className={`font-black text-sm ${sub.type === 'DDR' ? 'text-emerald-600' : 'text-blue-600'}`}>{sub.type}</div>
-                                                                <div className="font-bold text-brand-slate">{sub.seriesOrder}×{sub.distance / (sub.seriesOrder || 1)}m</div>
+                                                                <div className="font-bold text-brand-slate">{sub.seriesOrder}×{sub.distance}m</div>
                                                                 <div className="text-gray-500 italic text-sm">{sub.description || '-'}</div>
                                                                 <div className="text-center font-medium text-gray-600">{sub.interval || '-'}s / {sub.pause || '-'}s</div>
                                                                 <div className="text-center">

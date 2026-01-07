@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Plus, Calendar, Activity, Zap, TrendingUp, Award, Droplets, Dumbbell, Heart, Trophy, Edit2, Trash2, X, AlertTriangle, Clock, Scale, Thermometer, UserCheck, BarChart3, Users, Layout, Target, Info, Timer, Weight, ChevronLeft } from 'lucide-react';
 import { DatePicker, DateRange } from '@/components/ui/DatePicker';
 import { cyclesService } from '@/services/cyclesService';
-import { cyclesDashboardService, type MicroDashboardData, type MacroDashboardData, type MesoDashboardData } from '@/services/cyclesDashboardService';
-import { MOCK_ATHLETES } from '@/constants';
-import { MacroCycle, MicroCycle, MesoCycle } from '@/types';
+import { cyclesDashboardService, type MicroDashboardData, type MacroDashboardData, type MesoDashboardData, getFunctionalDirectionLabel } from '@/services/cyclesDashboardService';
+import { athleteService } from '@/services/athleteService';
+import { MacroCycle, MicroCycle, MesoCycle, Athlete } from '@/types';
 
 // Função auxiliar para formatar datas incluindo o ano (DD/MM/YYYY)
 const formatDate = (dateString?: string) => {
@@ -46,14 +46,16 @@ const CardHeader = ({ icon: Icon, title, subtitle }: { icon: any, title: string,
     </div>
 );
 
-const ProgressBar = ({ label, value, max, colorClass = "bg-brand-orange", subValue }: { key?: any, label: string, value: number, max: number, colorClass?: string, subValue?: string }) => {
+const ProgressBar = ({ label, value, max, colorClass = "bg-brand-orange", subValue }: { key?: any, label?: string, value: number, max: number, colorClass?: string, subValue?: string }) => {
     const percentage = Math.min((value / max) * 100, 100);
     return (
         <div className="w-full">
-            <div className="flex justify-between items-end mb-1.5">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{label}</span>
-                <span className="text-[11px] font-black text-slate-700">{subValue}</span>
-            </div>
+            {(label || subValue) && (
+                <div className="flex justify-between items-end mb-1.5">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-tight">{label}</span>
+                    <span className="text-[11px] font-black text-slate-700">{subValue}</span>
+                </div>
+            )}
             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${colorClass} transition-all duration-1000`} style={{ width: `${percentage}%` }}></div>
             </div>
@@ -68,6 +70,19 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
     const [dashboardData, setDashboardData] = useState<MicroDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
+    const [realAthletes, setRealAthletes] = useState<Athlete[]>([]);
+
+    useEffect(() => {
+        const fetchAthletes = async () => {
+            try {
+                const data = await athleteService.getAll({ status: 'Active' });
+                setRealAthletes(data);
+            } catch (error) {
+                console.error('Failed to fetch athletes:', error);
+            }
+        };
+        fetchAthletes();
+    }, []);
 
     useEffect(() => {
         const loadDashboard = async () => {
@@ -98,7 +113,7 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
     const gym = dashboardData?.gym || { total_load: 0, total_sessions: 0, average_load: 0 };
     const athletes = dashboardData?.athletes || { improved_count: 0, declined_count: 0, average_attendance: 0 };
     const wellness = dashboardData?.wellness || { avg_sleep: null, avg_fatigue: null, avg_stress: null, avg_muscle_soreness: null };
-    const funcDir = dashboardData?.functional_direction || { aero: 0, aero_ana: 0, vo2: 0, aa: 0, res_ana: 0, tol_ana: 0, pot_ana: 0, for_rap: 0, for_exp: 0, perna: 0, braco: 0, recup: 0 };
+    const funcDir = dashboardData?.functional_direction || {};
 
     return (
         <div className="flex flex-col h-full min-h-0 animate-in fade-in duration-500">
@@ -133,7 +148,7 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                             className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-brand-orange transition-all"
                         >
                             <option value="">Todos os Atletas</option>
-                            {MOCK_ATHLETES.map(athlete => (
+                            {realAthletes.map(athlete => (
                                 <option key={athlete.id} value={athlete.id}>{athlete.name}</option>
                             ))}
                         </select>
@@ -148,52 +163,77 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
 
                     {/* Card: Natação - Full Width */}
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
-                        <CardHeader icon={Droplets} title="Natação" subtitle="Volume & Intensidade" />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-end border-b border-slate-50 pb-4">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume Total</span>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-4xl font-black text-brand-slate tracking-tighter">{swimming.total_volume.toFixed(1)}</span>
-                                            <span className="text-lg font-black text-slate-400 uppercase">km</span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Treinos</span>
-                                        <span className="text-xl font-black text-brand-slate">{swimming.total_sessions}</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <ProgressBar label="DDR" value={swimming.ddr_volume} max={swimming.total_volume || 1} colorClass="bg-emerald-500" subValue={`${swimming.ddr_volume.toFixed(1)}km`} />
-                                    <ProgressBar label="DCR" value={swimming.dcr_volume} max={swimming.total_volume || 1} colorClass="bg-blue-500" subValue={`${swimming.dcr_volume.toFixed(1)}km`} />
+                    <div className="bg-white p-6 md:p-8 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
+                        <CardHeader icon={Droplets} title="NATAÇÃO" subtitle="VOLUME & INTENSIDADE" />
+
+                        {/* KPIs Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Volume Total</span>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-5xl font-black text-brand-slate tracking-tighter">{swimming.total_volume.toFixed(1)}</span>
+                                    <span className="text-sm font-black text-slate-400 uppercase tracking-widest">KM</span>
                                 </div>
                             </div>
-                            <div className="mt-auto bg-slate-50 px-6 py-4 rounded-2xl flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Média / Treino</span>
-                                <span className="text-xl font-black text-brand-slate">{swimming.average_per_session.toFixed(0)}m</span>
+                            <div className="flex flex-col md:items-center">
+                                <div className="w-full md:w-auto">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Treinos</span>
+                                    <span className="text-5xl font-black text-brand-slate tracking-tighter">{swimming.total_sessions}</span>
+                                </div>
+                            </div>
+                            <div className="flex flex-col md:items-end">
+                                <div className="w-full md:w-auto text-left md:text-right">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Média / Treino</span>
+                                    <div className="flex items-baseline md:justify-end gap-1">
+                                        <span className="text-5xl font-black text-brand-slate tracking-tighter">{swimming.average_per_session.toFixed(0)}</span>
+                                        <span className="text-sm font-black text-slate-400 uppercase tracking-widest">M</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Progress Bars Row */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8">
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-end mb-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DDR (VOLUME RESISTIVO)</span>
+                                        <span className="text-xs font-black text-brand-slate">{swimming.ddr_volume.toFixed(1)}km</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-500">({swimming.total_volume > 0 ? ((swimming.ddr_volume / swimming.total_volume) * 100).toFixed(0) : 0}%)</span>
+                                        <span className="text-[10px] font-black text-slate-300">{swimming.ddr_volume.toFixed(0)}/{(swimming.total_volume).toFixed(0)}</span>
+                                    </div>
+                                </div>
+                                <ProgressBar value={swimming.ddr_volume} max={swimming.total_volume || 1} colorClass="bg-emerald-500" />
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-end mb-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">DCR (VOLUME DE CARGA)</span>
+                                        <span className="text-xs font-black text-brand-slate">{swimming.dcr_volume.toFixed(1)}km</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black text-slate-500">({swimming.total_volume > 0 ? ((swimming.dcr_volume / swimming.total_volume) * 100).toFixed(0) : 0}%)</span>
+                                        <span className="text-[10px] font-black text-slate-300">{swimming.dcr_volume.toFixed(0)}/{(swimming.total_volume).toFixed(0)}</span>
+                                    </div>
+                                </div>
+                                <ProgressBar value={swimming.dcr_volume} max={swimming.total_volume || 1} colorClass="bg-blue-500" />
                             </div>
                         </div>
                     </div>
 
                     {/* Card: Direção Funcional - Full Width */}
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2 overflow-hidden">
+                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
                         <CardHeader icon={Zap} title="Direção Funcional" subtitle="Resumo das Capacidades Físico Motrizes" />
-                        <div className="overflow-x-auto custom-scrollbar">
-                            <div className="flex border border-slate-100 rounded-xl divide-x divide-slate-100 min-w-[800px] lg:min-w-0">
-                                {[
-                                    { label: 'AERO', val: funcDir.aero }, { label: 'AERO ANA', val: funcDir.aero_ana }, { label: 'VO2', val: funcDir.vo2 },
-                                    { label: 'AA', val: funcDir.aa }, { label: 'RES ANA', val: funcDir.res_ana }, { label: 'TOL ANA', val: funcDir.tol_ana },
-                                    { label: 'POT ANA', val: funcDir.pot_ana }, { label: 'FOR RÁP', val: funcDir.for_rap }, { label: 'FOR EXP', val: funcDir.for_exp },
-                                    { label: 'PERNA', val: funcDir.perna }, { label: 'BRAÇO', val: funcDir.braco }, { label: 'RECUP', val: funcDir.recup }
-                                ].map((cap, i) => (
-                                    <div key={i} className="flex-1 p-3 md:p-4 text-center group hover:bg-orange-50/30 transition-colors">
-                                        <span className="block text-[8px] md:text-[10px] font-black text-slate-400 group-hover:text-brand-orange transition-colors uppercase mb-2 h-6 flex items-center justify-center leading-tight">{cap.label}</span>
-                                        <span className="text-lg md:text-xl font-black text-slate-700">{cap.val}</span>
-                                    </div>
-                                ))}
-                            </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                            {Object.entries(funcDir).filter(([_, val]) => val !== undefined).map(([key, val]) => (
+                                <div key={key} className="p-3 md:p-4 text-center rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-orange-50/30 transition-colors">
+                                    <span className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase mb-2 leading-tight">{getFunctionalDirectionLabel(key)}</span>
+                                    <span className="text-lg md:text-xl font-black text-slate-700">{val}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -224,6 +264,40 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold text-orange-700 uppercase">Carga Relativa</span>
                                     <span className="text-lg font-black text-orange-800">{dashboardData.relative_load.toFixed(2)}x peso corporal</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* DDR/DCR Breakdown */}
+                        {(gym.ddr_explosive !== undefined || gym.dcr_max !== undefined) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
+                                        <span className="text-[10px] md:text-xs font-bold text-amber-700 uppercase">DDR Total</span>
+                                        <span className="text-[10px] md:text-xs font-black text-amber-800 whitespace-nowrap">
+                                            {((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)).toFixed(0)} kg
+                                            ({gym.total_load > 0 ? (((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3 pl-2">
+                                        <ProgressBar key="ddr-explosive" label="Força Explosiva" value={gym.ddr_explosive || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosive || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="ddr-explosiva" label="Explosiva" value={gym.ddr_explosiva || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosiva || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="ddr-fast" label="Força Rápida" value={gym.ddr_fast || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_fast || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="ddr-res" label="Resistência Força" value={gym.ddr_resistance || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_resistance || 0).toFixed(0)} kg`} />
+                                    </div>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100">
+                                        <span className="text-[10px] md:text-xs font-bold text-sky-700 uppercase">DCR Total</span>
+                                        <span className="text-[10px] md:text-xs font-black text-sky-800 whitespace-nowrap">
+                                            {((gym.dcr_max || 0) + (gym.dcr_resistive || 0)).toFixed(0)} kg
+                                            ({gym.total_load > 0 ? (((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
+                                        </span>
+                                    </div>
+                                    <div className="space-y-3 pl-2">
+                                        <ProgressBar key="dcr-max" label="Força Máxima" value={gym.dcr_max || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_max || 0).toFixed(0)} kg`} />
+                                        <ProgressBar key="dcr-res" label="Força Resistiva" value={gym.dcr_resistive || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_resistive || 0).toFixed(0)} kg`} />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -267,6 +341,39 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
 };
 
 const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () => void, onDelete: () => void }) => {
+    const [dashboardData, setDashboardData] = useState<MesoDashboardData | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadDashboard = async () => {
+            try {
+                setLoading(true);
+                const data = await cyclesDashboardService.getMesoDashboard(meso.id);
+                setDashboardData(data);
+            } catch (error) {
+                console.error('Failed to load meso dashboard:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadDashboard();
+    }, [meso.id]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col h-full items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-orange"></div>
+                <p className="mt-4 text-slate-400">Carregando dashboard...</p>
+            </div>
+        );
+    }
+
+    const swimming = dashboardData?.swimming || { total_volume: 0, total_sessions: 0, average_per_session: 0, ddr_volume: 0, dcr_volume: 0 };
+    const gym = dashboardData?.gym || { total_load: 0, total_sessions: 0, average_load: 0, ddr_explosive: 0, ddr_resistance: 0, ddr_fast: 0, dcr_max: 0, dcr_resistive: 0 };
+    const athletes = dashboardData?.athletes || { improved_count: 0, declined_count: 0, average_attendance: 0, weight_gained_count: 0, weight_lost_count: 0 };
+    const wellness = dashboardData?.wellness || { avg_sleep: null, avg_fatigue: null, avg_stress: null, avg_muscle_soreness: null };
+    const funcDir = dashboardData?.functional_direction || {};
+
     return (
         <div className="flex flex-col h-full min-h-0 animate-in fade-in duration-500">
             {/* Header Clean */}
@@ -312,24 +419,24 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume Consolidado</span>
                                         <div className="flex items-baseline gap-1">
-                                            <span className="text-4xl font-black text-brand-slate tracking-tighter">123.4</span>
+                                            <span className="text-4xl font-black text-brand-slate tracking-tighter">{swimming.total_volume.toFixed(1)}</span>
                                             <span className="text-lg font-black text-slate-400 uppercase">km</span>
                                         </div>
                                     </div>
                                     <div className="text-right">
                                         <div className="flex flex-col mb-4">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total de Treinos</span>
-                                            <span className="text-xl font-black text-brand-slate">67</span>
+                                            <span className="text-xl font-black text-brand-slate">{swimming.total_sessions}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Metragem / Treino</span>
-                                            <span className="text-xl font-black text-brand-slate">2.733m</span>
+                                            <span className="text-xl font-black text-brand-slate">{swimming.average_per_session.toFixed(0)}m</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="space-y-4">
-                                    <ProgressBar label="DDR (Volume Resistivo)" value={58.09} max={100} colorClass="bg-emerald-500" subValue="61.975m (58%)" />
-                                    <ProgressBar label="DCR (Volume de Carga)" value={41.91} max={100} colorClass="bg-blue-500" subValue="61.425m (42%)" />
+                                    <ProgressBar label="DDR (Volume Resistivo)" value={swimming.ddr_volume} max={swimming.total_volume || 1} colorClass="bg-emerald-500" subValue={`${swimming.ddr_volume.toFixed(1)}km`} />
+                                    <ProgressBar label="DCR (Volume de Carga)" value={swimming.dcr_volume} max={swimming.total_volume || 1} colorClass="bg-blue-500" subValue={`${swimming.dcr_volume.toFixed(1)}km`} />
                                 </div>
                             </div>
                             <div className="bg-slate-50 p-4 md:p-5 rounded-2xl space-y-4">
@@ -352,22 +459,15 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                     </div>
 
                     {/* Card: Capacidades Motrizes - Full Width */}
-                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2 overflow-hidden">
+                    <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1 lg:col-span-2">
                         <CardHeader icon={Zap} title="Direção Funcional" subtitle="Resumo das Capacidades Físico Motrizes" />
-                        <div className="overflow-x-auto custom-scrollbar">
-                            <div className="flex border border-slate-100 rounded-xl divide-x divide-slate-100 min-w-[800px] lg:min-w-0">
-                                {[
-                                    { label: 'AERO', val: 3 }, { label: 'AERO ANA', val: 3 }, { label: 'VO2', val: 3 },
-                                    { label: 'AA', val: 3 }, { label: 'RES ANA', val: 3 }, { label: 'TOL ANA', val: 3 },
-                                    { label: 'POT ANA', val: 3 }, { label: 'FOR RÁP', val: 3 }, { label: 'FOR EXP', val: 3 },
-                                    { label: 'PERNA', val: 3 }, { label: 'BRAÇO', val: 3 }, { label: 'RECUP', val: 3 }
-                                ].map((cap, i) => (
-                                    <div key={i} className="flex-1 p-3 md:p-4 text-center group hover:bg-orange-50/30 transition-colors">
-                                        <span className="block text-[8px] md:text-[10px] font-black text-slate-400 group-hover:text-brand-orange transition-colors uppercase mb-2 h-6 flex items-center justify-center leading-tight">{cap.label}</span>
-                                        <span className="text-lg md:text-xl font-black text-slate-700">{cap.val}</span>
-                                    </div>
-                                ))}
-                            </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                            {Object.entries(funcDir).filter(([_, val]) => val !== undefined).map(([key, val]) => (
+                                <div key={key} className="p-3 md:p-4 text-center rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-orange-50/30 transition-colors">
+                                    <span className="block text-[8px] md:text-[10px] font-black text-slate-400 uppercase mb-2 leading-tight">{getFunctionalDirectionLabel(key)}</span>
+                                    <span className="text-lg md:text-xl font-black text-slate-700">{val}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
 
@@ -378,18 +478,18 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Consolidada</span>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-4xl font-black text-brand-slate tracking-tighter">85.000</span>
-                                    <span className="text-lg font-black text-slate-400 uppercase">kg</span>
+                                    <span className="text-4xl font-black text-brand-slate tracking-tighter">{(gym.total_load / 1000).toFixed(1)}</span>
+                                    <span className="text-lg font-black text-slate-400 uppercase">ton</span>
                                 </div>
                             </div>
                             <div className="text-right flex gap-8">
                                 <div className="flex flex-col">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
-                                    <span className="text-xl font-black text-brand-slate">23</span>
+                                    <span className="text-xl font-black text-brand-slate">{gym.total_sessions}</span>
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Peso Médio</span>
-                                    <span className="text-xl font-black text-brand-slate">820kg</span>
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Carga Média</span>
+                                    <span className="text-xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
                                 </div>
                             </div>
                         </div>
@@ -423,10 +523,10 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                     <div className="bg-white p-4 md:p-6 rounded-[40px] border border-slate-100 shadow-sm col-span-1">
                         <CardHeader icon={Heart} title="Bem Estar" subtitle="Média dos Atletas (1-10)" />
                         <div className="space-y-5">
-                            <ProgressBar label="Qualidade Sono" value={7} max={10} colorClass="bg-sky-500" />
-                            <ProgressBar label="Fadiga Acumulada" value={8} max={10} colorClass="bg-orange-500" />
-                            <ProgressBar label="Nível de Estresse" value={4} max={10} colorClass="bg-yellow-400" />
-                            <ProgressBar label="Dor Muscular" value={6} max={10} colorClass="bg-rose-500" />
+                            <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-500" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
+                            <ProgressBar label="Fadiga Acumulada" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-500" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
+                            <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
+                            <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-500" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
                         </div>
                         <div className="mt-8 pt-4 md:pt-6 border-t border-slate-100">
                             <div className="flex items-center gap-2 text-[10px] md:text-xs text-amber-600 bg-amber-50 p-2 rounded-lg font-medium">
@@ -440,11 +540,11 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="p-3 md:p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                                    <span className="block text-2xl md:text-3xl font-black text-emerald-600 leading-none">15</span>
+                                    <span className="block text-2xl md:text-3xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
                                     <span className="text-[8px] md:text-[10px] font-bold text-emerald-700 uppercase tracking-wide mt-2 block">Evoluíram</span>
                                 </div>
                                 <div className="p-3 md:p-4 bg-rose-50 rounded-2xl border border-rose-100 text-center">
-                                    <span className="block text-2xl md:text-3xl font-black text-rose-600 leading-none">2</span>
+                                    <span className="block text-2xl md:text-3xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
                                     <span className="text-[8px] md:text-[10px] font-bold text-rose-700 uppercase tracking-wide mt-2 block">Pioraram</span>
                                 </div>
                             </div>
@@ -464,11 +564,11 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                                 <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Peso Corporal</h5>
                                 <div className="flex items-center justify-between text-[10px] md:text-xs">
                                     <span className="text-emerald-600 font-bold flex items-center gap-1"><TrendingUp size={12} className="flex-shrink-0" /> <span className="truncate">Ganharam Peso</span></span>
-                                    <span className="font-black text-slate-700 whitespace-nowrap">10 Atletas</span>
+                                    <span className="font-black text-slate-700 whitespace-nowrap">{athletes.weight_gained_count || 0} Atletas</span>
                                 </div>
                                 <div className="flex items-center justify-between text-[10px] md:text-xs">
                                     <span className="text-rose-600 font-bold flex items-center gap-1"><TrendingUp size={12} className="rotate-180 flex-shrink-0" /> <span className="truncate">Perderam Peso</span></span>
-                                    <span className="font-black text-slate-700 whitespace-nowrap">32 Atletas</span>
+                                    <span className="font-black text-slate-700 whitespace-nowrap">{athletes.weight_lost_count || 0} Atletas</span>
                                 </div>
                             </div>
                         </div>
@@ -481,6 +581,38 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
 };
 
 const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: () => void, onDelete: () => void }) => {
+    const [dashboardData, setDashboardData] = useState<MacroDashboardData | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const loadDashboard = async () => {
+            try {
+                setLoading(true);
+                const data = await cyclesDashboardService.getMacroDashboard(macro.id);
+                setDashboardData(data);
+            } catch (error) {
+                console.error('Failed to load macro dashboard:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadDashboard();
+    }, [macro.id]);
+
+    if (loading) {
+        return (
+            <div className="flex flex-col h-full items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-orange"></div>
+                <p className="mt-4 text-slate-400">Carregando dashboard...</p>
+            </div>
+        );
+    }
+
+    const swimming = dashboardData?.swimming || { total_volume: 0, total_sessions: 0, average_per_session: 0, ddr_volume: 0, dcr_volume: 0 };
+    const gym = dashboardData?.gym || { total_load: 0, total_sessions: 0, average_load: 0 };
+    const athletes = dashboardData?.athletes || { improved_count: 0, declined_count: 0, average_attendance: 0, weight_gained_count: 0, weight_lost_count: 0 };
+    const wellness = dashboardData?.wellness || { avg_sleep: null, avg_fatigue: null, avg_stress: null, avg_muscle_soreness: null };
+
     return (
         <div className="flex flex-col h-full min-h-0 animate-in fade-in duration-500">
             {/* Header Clean */}
@@ -524,22 +656,22 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume Total</span>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-4xl font-black text-brand-slate tracking-tighter">123.4</span>
+                                    <span className="text-4xl font-black text-brand-slate tracking-tighter">{swimming.total_volume.toFixed(1)}</span>
                                     <span className="text-lg font-black text-slate-400 uppercase">km</span>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Treinos</span>
-                                <span className="text-3xl font-black text-brand-slate">67</span>
+                                <span className="text-3xl font-black text-brand-slate">{swimming.total_sessions}</span>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-                            <ProgressBar label="DDR" value={61.5} max={100} colorClass="bg-emerald-500" subValue="61.5km" />
-                            <ProgressBar label="DCR" value={39.2} max={100} colorClass="bg-blue-500" subValue="39.2km" />
+                            <ProgressBar label="DDR" value={swimming.ddr_volume} max={swimming.total_volume || 1} colorClass="bg-emerald-500" subValue={`${swimming.ddr_volume.toFixed(1)}km`} />
+                            <ProgressBar label="DCR" value={swimming.dcr_volume} max={swimming.total_volume || 1} colorClass="bg-blue-500" subValue={`${swimming.dcr_volume.toFixed(1)}km`} />
                         </div>
                         <div className="mt-auto bg-slate-50 px-6 py-4 rounded-2xl flex justify-between items-center">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Média / Treino</span>
-                            <span className="text-base font-black text-brand-slate">1.850m</span>
+                            <span className="text-base font-black text-brand-slate">{swimming.average_per_session.toFixed(0)}m</span>
                         </div>
                     </div>
 
@@ -550,13 +682,13 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Tonelagem</span>
                                 <div className="flex items-baseline gap-1">
-                                    <span className="text-4xl font-black text-brand-slate tracking-tighter">85</span>
+                                    <span className="text-4xl font-black text-brand-slate tracking-tighter">{(gym.total_load / 1000).toFixed(1)}</span>
                                     <span className="text-lg font-black text-slate-400 uppercase">ton</span>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
-                                <span className="text-3xl font-black text-brand-slate">23</span>
+                                <span className="text-3xl font-black text-brand-slate">{gym.total_sessions}</span>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
@@ -565,7 +697,7 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                         </div>
                         <div className="mt-auto bg-slate-50 px-6 py-4 rounded-2xl flex justify-between items-center">
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Peso Médio</span>
-                            <span className="text-base font-black text-brand-slate">820kg</span>
+                            <span className="text-base font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
                         </div>
                     </div>
 
@@ -573,10 +705,10 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                     <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm">
                         <CardHeader icon={Heart} title="Bem Estar" subtitle="Média do Ciclo (1-10)" />
                         <div className="space-y-6 mt-4">
-                            <ProgressBar label="Qualidade Sono" value={7.2} max={10} colorClass="bg-sky-500" subValue="7.2 / 10" />
-                            <ProgressBar label="Fadiga (PSE)" value={8.0} max={10} colorClass="bg-orange-500" subValue="8.0 / 10" />
-                            <ProgressBar label="Nível de Estresse" value={4.5} max={10} colorClass="bg-yellow-400" subValue="4.5 / 10" />
-                            <ProgressBar label="Dor Muscular" value={6.1} max={10} colorClass="bg-rose-500" subValue="6.1 / 10" />
+                            <ProgressBar label="Qualidade Sono" value={wellness.avg_sleep || 0} max={10} colorClass="bg-sky-500" subValue={wellness.avg_sleep ? `${wellness.avg_sleep} / 10` : 'N/A'} />
+                            <ProgressBar label="Fadiga (PSE)" value={wellness.avg_fatigue || 0} max={10} colorClass="bg-orange-500" subValue={wellness.avg_fatigue ? `${wellness.avg_fatigue} / 10` : 'N/A'} />
+                            <ProgressBar label="Nível de Estresse" value={wellness.avg_stress || 0} max={10} colorClass="bg-yellow-400" subValue={wellness.avg_stress ? `${wellness.avg_stress} / 10` : 'N/A'} />
+                            <ProgressBar label="Dor Muscular" value={wellness.avg_muscle_soreness || 0} max={10} colorClass="bg-rose-500" subValue={wellness.avg_muscle_soreness ? `${wellness.avg_muscle_soreness} / 10` : 'N/A'} />
                         </div>
                     </div>
 
@@ -589,17 +721,17 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
                         <div className="flex gap-4 w-full">
                             <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
-                                <span className="block text-2xl font-black text-emerald-600 leading-none">15</span>
+                                <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
                                 <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
                             </div>
                             <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100 text-center">
-                                <span className="block text-2xl font-black text-rose-600 leading-none">2</span>
+                                <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
                                 <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
                             </div>
                         </div>
                         <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                             <span>Presença Média</span>
-                            <span className="text-brand-slate font-bold">5.2 treinos/sem</span>
+                            <span className="text-brand-slate font-bold">{athletes.average_attendance.toFixed(0)}% de presença</span>
                         </div>
                     </div>
 

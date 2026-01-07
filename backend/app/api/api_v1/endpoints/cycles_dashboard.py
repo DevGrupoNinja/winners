@@ -11,30 +11,131 @@ router = APIRouter()
 
 
 def get_swimming_data(db: Session, start_date: date, end_date: date, athlete_id: Optional[int] = None) -> dict:
-    """Aggregate swimming training data for a date range."""
+    """Aggregate swimming training data for a date range.
     
-    # Base query for sessions in range
-    query = db.query(models.TrainingSession).filter(
-        models.TrainingSession.date >= start_date,
-        models.TrainingSession.date <= end_date
-    )
+    For a specific athlete: shows volumes from series where they have feedback.
+    For all athletes (no filter): shows weighted average per feedback.
+    """
     
-    sessions = query.all()
-    total_sessions = len(sessions)
-    total_volume = sum(s.total_volume or 0 for s in sessions)
-    
-    # Calculate DDR/DCR volumes from subdivisions
-    ddr_volume = 0.0
-    dcr_volume = 0.0
-    
-    for session in sessions:
-        for series in session.series:
-            for subdiv in series.subdivisions:
-                volume = (subdiv.distance or 0) * (subdiv.reps or 0)
-                if subdiv.type == "DDR":
-                    ddr_volume += volume
-                elif subdiv.type == "DCR":
-                    dcr_volume += volume
+    if athlete_id:
+        # Atleta específico: soma das subdivisões das séries onde tem feedback
+        feedbacks = db.query(models.SessionFeedback).join(
+            models.TrainingSession
+        ).filter(
+            models.TrainingSession.date >= start_date,
+            models.TrainingSession.date <= end_date,
+            models.SessionFeedback.athlete_id == athlete_id,
+            models.SessionFeedback.attendance == "Present"
+        ).all()
+        
+        # Contar sessões únicas
+        session_ids = set(f.session_id for f in feedbacks)
+        total_sessions = len(session_ids)
+        
+        # Coletar series_ids com feedback (exclui None para feedbacks sem série específica)
+        series_ids_with_feedback = set(f.series_id for f in feedbacks if f.series_id is not None)
+        
+        # Se não houver series_id específico, assumir que participou de todas as séries da sessão
+        # (compatibilidade com dados antigos sem series_id)
+        total_volume = 0.0
+        ddr_volume = 0.0
+        dcr_volume = 0.0
+        
+        if series_ids_with_feedback:
+            # Buscar subdivisões apenas das séries com feedback
+            series_list = db.query(models.TrainingSeries).filter(
+                models.TrainingSeries.id.in_(series_ids_with_feedback)
+            ).all()
+            
+            for series in series_list:
+                for subdiv in series.subdivisions:
+                    volume = (subdiv.distance or 0) * (subdiv.reps or 0)
+                    total_volume += volume
+                    if subdiv.type == "DDR":
+                        ddr_volume += volume
+                    elif subdiv.type == "DCR":
+                        dcr_volume += volume
+        else:
+            # Fallback: sem series_id, usar todas as séries das sessões (dados antigos)
+            for session_id in session_ids:
+                session = db.query(models.TrainingSession).filter(
+                    models.TrainingSession.id == session_id
+                ).first()
+                if session:
+                    for series in session.series:
+                        for subdiv in series.subdivisions:
+                            volume = (subdiv.distance or 0) * (subdiv.reps or 0)
+                            total_volume += volume
+                            if subdiv.type == "DDR":
+                                ddr_volume += volume
+                            elif subdiv.type == "DCR":
+                                dcr_volume += volume
+    else:
+        # Todos os atletas: média por atleta único
+        # Cada atleta contribui com o volume das séries onde tem feedback
+        
+        feedbacks = db.query(models.SessionFeedback).join(
+            models.TrainingSession
+        ).filter(
+            models.TrainingSession.date >= start_date,
+            models.TrainingSession.date <= end_date,
+            models.SessionFeedback.attendance == "Present"
+        ).all()
+        
+        session_ids = set(f.session_id for f in feedbacks)
+        total_sessions = len(session_ids)
+        unique_athletes = set(f.athlete_id for f in feedbacks)
+        total_unique_athletes = len(unique_athletes)
+        
+        # Calcular volume total por atleta
+        # Para cada atleta, somar o volume das séries onde tem feedback
+        athlete_volumes = {}  # athlete_id -> {total, ddr, dcr}
+        
+        for f in feedbacks:
+            if f.athlete_id not in athlete_volumes:
+                athlete_volumes[f.athlete_id] = {"total": 0.0, "ddr": 0.0, "dcr": 0.0}
+            
+            if f.series_id:
+                series = db.query(models.TrainingSeries).filter(
+                    models.TrainingSeries.id == f.series_id
+                ).first()
+                if series:
+                    for subdiv in series.subdivisions:
+                        volume = (subdiv.distance or 0) * (subdiv.reps or 0)
+                        athlete_volumes[f.athlete_id]["total"] += volume
+                        if subdiv.type == "DDR":
+                            athlete_volumes[f.athlete_id]["ddr"] += volume
+                        elif subdiv.type == "DCR":
+                            athlete_volumes[f.athlete_id]["dcr"] += volume
+        
+        # Se nenhum feedback tem series_id, fallback para volume por sessão
+        if not any(f.series_id for f in feedbacks):
+            for f in feedbacks:
+                if f.athlete_id not in athlete_volumes:
+                    athlete_volumes[f.athlete_id] = {"total": 0.0, "ddr": 0.0, "dcr": 0.0}
+                
+                session = db.query(models.TrainingSession).filter(
+                    models.TrainingSession.id == f.session_id
+                ).first()
+                if session:
+                    for series in session.series:
+                        for subdiv in series.subdivisions:
+                            volume = (subdiv.distance or 0) * (subdiv.reps or 0)
+                            athlete_volumes[f.athlete_id]["total"] += volume
+                            if subdiv.type == "DDR":
+                                athlete_volumes[f.athlete_id]["ddr"] += volume
+                            elif subdiv.type == "DCR":
+                                athlete_volumes[f.athlete_id]["dcr"] += volume
+        
+        # Calcular médias
+        if total_unique_athletes > 0:
+            total_volume = sum(v["total"] for v in athlete_volumes.values()) / total_unique_athletes
+            ddr_volume = sum(v["ddr"] for v in athlete_volumes.values()) / total_unique_athletes
+            dcr_volume = sum(v["dcr"] for v in athlete_volumes.values()) / total_unique_athletes
+        else:
+            total_volume = 0
+            ddr_volume = 0
+            dcr_volume = 0
     
     # Convert to km
     total_volume_km = total_volume / 1000
@@ -53,50 +154,144 @@ def get_swimming_data(db: Session, start_date: date, end_date: date, athlete_id:
 
 
 def get_gym_data(db: Session, start_date: date, end_date: date, athlete_id: Optional[int] = None, detailed: bool = False) -> dict:
-    """Aggregate gym training data for a date range."""
+    """Aggregate gym training data for a date range.
     
-    query = db.query(models.GymSession).filter(
-        models.GymSession.date >= start_date,
-        models.GymSession.date <= end_date
-    )
+    For a specific athlete: shows their individual totals.
+    For all athletes (no filter): shows weighted average per athlete (total load / unique athletes with feedback).
+    """
     
-    sessions = query.all()
-    total_sessions = len(sessions)
+    # DDR/DCR category mapping
+    DDR_TYPES = {"Força Explosiva", "Explosiva", "Força Rápida", "Resistência Força"}
+    DCR_TYPES = {"Força Máxima", "Força Resistiva"}
     
-    # Calculate total load from feedbacks
-    total_load = 0.0
+    # Initialize breakdown accumulators
+    ddr_explosive = 0.0  # Força Explosiva
+    ddr_explosiva = 0.0  # Explosiva (separate)
+    ddr_fast = 0.0
+    ddr_resistance = 0.0
+    dcr_max = 0.0
+    dcr_resistive = 0.0
     
-    # For detailed breakdown (meso level)
-    ddr_explosive = ddr_resistance = ddr_fast = dcr_max = dcr_resistive = 0.0
+    def get_exercise_capacity(session, exercise_name):
+        """Get physicalMotorCapacity for an exercise from session's exercises_snapshot."""
+        exercises = session.exercises_snapshot or []
+        print(f"[DEBUG] Looking for exercise '{exercise_name}' in snapshot with {len(exercises)} exercises")
+        for ex in exercises:
+            print(f"[DEBUG]   - Exercise: name='{ex.get('name')}', capacity='{ex.get('physicalMotorCapacity', '')}'")
+            if ex.get("name") == exercise_name:
+                capacity = ex.get("physicalMotorCapacity", "")
+                print(f"[DEBUG]   MATCH! Returning capacity: '{capacity}'")
+                return capacity
+        print(f"[DEBUG]   NOT FOUND!")
+        return ""
     
-    for session in sessions:
-        for feedback in session.feedbacks:
-            if athlete_id and feedback.athlete_id != athlete_id:
-                continue
+    def add_to_breakdown(capacity, load_sum):
+        nonlocal ddr_explosive, ddr_explosiva, ddr_fast, ddr_resistance, dcr_max, dcr_resistive
+        if capacity == "Força Explosiva":
+            ddr_explosive += load_sum
+        elif capacity == "Explosiva":
+            ddr_explosiva += load_sum
+        elif capacity == "Força Rápida":
+            ddr_fast += load_sum
+        elif capacity == "Resistência Força":
+            ddr_resistance += load_sum
+        elif capacity == "Força Máxima":
+            dcr_max += load_sum
+        elif capacity == "Força Resistiva":
+            dcr_resistive += load_sum
+    
+    if athlete_id:
+        # Atleta específico: soma da carga dele nas sessões onde participou
+        sessions = db.query(models.GymSession).filter(
+            models.GymSession.date >= start_date,
+            models.GymSession.date <= end_date
+        ).all()
+        
+        total_load = 0.0
+        sessions_count = 0
+        
+        for session in sessions:
+            athlete_in_session = False
+            for feedback in session.feedbacks:
+                if feedback.athlete_id != int(athlete_id):
+                    continue
                 
-            # Sum all loads from performed_loads dict
-            if feedback.performed_loads:
-                for exercise_name, loads in feedback.performed_loads.items():
-                    if isinstance(loads, list):
-                        total_load += sum(loads)
-    
-    avg_load = total_load / total_sessions if total_sessions > 0 else 0
+                athlete_in_session = True
+                if feedback.performed_loads:
+                    for exercise_name, loads in feedback.performed_loads.items():
+                        if isinstance(loads, list):
+                            load_sum = sum(loads)
+                            total_load += load_sum
+                            if detailed:
+                                capacity = get_exercise_capacity(session, exercise_name)
+                                add_to_breakdown(capacity, load_sum)
+            
+            if athlete_in_session:
+                sessions_count += 1
+        
+        total_sessions = sessions_count
+        avg_load = total_load / total_sessions if total_sessions > 0 else 0
+    else:
+        # Todos os atletas: média por atleta = soma de todas cargas / número de atletas únicos com feedback
+        sessions = db.query(models.GymSession).filter(
+            models.GymSession.date >= start_date,
+            models.GymSession.date <= end_date
+        ).all()
+        
+        total_load = 0.0
+        athletes_with_feedback = set()
+        sessions_with_feedback = 0
+        
+        for session in sessions:
+            has_feedback = False
+            for feedback in session.feedbacks:
+                if feedback.performed_loads:
+                    has_feedback = True
+                    athletes_with_feedback.add(feedback.athlete_id)
+                    for exercise_name, loads in feedback.performed_loads.items():
+                        if isinstance(loads, list):
+                            load_sum = sum(loads)
+                            total_load += load_sum
+                            if detailed:
+                                capacity = get_exercise_capacity(session, exercise_name)
+                                add_to_breakdown(capacity, load_sum)
+            
+            if has_feedback:
+                sessions_with_feedback += 1
+        
+        # Média por atleta
+        num_athletes = len(athletes_with_feedback)
+        total_sessions = sessions_with_feedback
+        
+        if num_athletes > 0:
+            # Média = carga por atleta por sessão
+            avg_load = (total_load / num_athletes) / total_sessions if total_sessions > 0 else 0
+            total_load = total_load / num_athletes  # Mostrar média no total também
+            # Also average the breakdown
+            ddr_explosive = ddr_explosive / num_athletes
+            ddr_explosiva = ddr_explosiva / num_athletes
+            ddr_fast = ddr_fast / num_athletes
+            ddr_resistance = ddr_resistance / num_athletes
+            dcr_max = dcr_max / num_athletes
+            dcr_resistive = dcr_resistive / num_athletes
+        else:
+            avg_load = 0
+            total_load = 0
     
     result = {
         "total_load": round(total_load, 2),
         "total_sessions": total_sessions,
-        "average_load": round(avg_load, 2),
+        "average_load": round(avg_load, 2),  # avg_load is already total_load/sessions (or per-athlete for aggregate)
     }
     
     if detailed:
-        # TODO: Implement breakdown by exercise type (DDR/DCR categories)
-        # For now, distribute proportionally (placeholder logic)
         result.update({
-            "ddr_explosive": round(total_load * 0.27, 2),
-            "ddr_resistance": round(total_load * 0.12, 2),
-            "ddr_fast": round(total_load * 0.34, 2),
-            "dcr_max": round(total_load * 0.19, 2),
-            "dcr_resistive": round(total_load * 0.08, 2),
+            "ddr_explosive": round(ddr_explosive, 2),
+            "ddr_explosiva": round(ddr_explosiva, 2),
+            "ddr_resistance": round(ddr_resistance, 2),
+            "ddr_fast": round(ddr_fast, 2),
+            "dcr_max": round(dcr_max, 2),
+            "dcr_resistive": round(dcr_resistive, 2),
         })
     
     return result
@@ -209,62 +404,100 @@ def get_wellness_data(db: Session, start_date: date, end_date: date, athlete_id:
     }
 
 
-def get_functional_direction_data(db: Session, start_date: date, end_date: date) -> dict:
-    """Aggregate functional direction data from training subdivisions."""
+def get_functional_direction_data(db: Session, start_date: date, end_date: date, athlete_id: Optional[int] = None) -> dict:
+    """
+    Aggregate functional direction data from training subdivisions.
     
-    # Get all subdivisions in the date range
-    subdivisions = db.query(models.TrainingSubdivision).join(
-        models.TrainingSeries
-    ).join(
-        models.TrainingSession
-    ).filter(
-        models.TrainingSession.date >= start_date,
-        models.TrainingSession.date <= end_date
-    ).all()
+    Returns **counts** (integers) for each functional base configured in the system,
+    based on the functional_base field in TrainingSubdivision.
+    Only shows bases that are configured in ConfigFunctionalDirectionRange.
     
-    # Count occurrences of each functional base
-    direction_counts = {
-        "aero": 0,
-        "aero_ana": 0,
-        "vo2": 0,
-        "aa": 0,
-        "res_ana": 0,
-        "tol_ana": 0,
-        "pot_ana": 0,
-        "for_rap": 0,
-        "for_exp": 0,
-        "perna": 0,
-        "braco": 0,
-        "recup": 0,
-    }
+    If athlete_id is provided, only count subdivisions from series where the athlete has feedback.
+    """
     
-    for subdiv in subdivisions:
-        fb = (subdiv.functional_base or "").lower()
+    # Get all configured functional directions from the system
+    configured_directions = db.query(models.ConfigFunctionalDirectionRange).all()
+    
+    # Initialize direction counts with ONLY configured directions
+    direction_counts: dict[str, int] = {}
+    direction_name_map: dict[str, str] = {}  # Maps normalized key to original name
+    
+    for config in configured_directions:
+        original_name = config.direction
+        normalized = original_name.lower().replace("á", "a").replace("é", "e").replace("ó", "o").replace(" ", "_")
+        direction_counts[original_name] = 0
+        direction_name_map[normalized] = original_name
+    
+    if athlete_id:
+        # For specific athlete: only count subdivisions from series where they have feedback
+        feedbacks = db.query(models.SessionFeedback).join(
+            models.TrainingSession
+        ).filter(
+            models.TrainingSession.date >= start_date,
+            models.TrainingSession.date <= end_date,
+            models.SessionFeedback.athlete_id == athlete_id,
+            models.SessionFeedback.attendance == "Present"
+        ).all()
         
-        if "aero" in fb and "ana" not in fb:
-            direction_counts["aero"] += 1
-        elif "aero" in fb and "ana" in fb:
-            direction_counts["aero_ana"] += 1
-        elif "vo2" in fb:
-            direction_counts["vo2"] += 1
-        elif "aa" in fb or "limiar" in fb:
-            direction_counts["aa"] += 1
-        elif "res" in fb and "ana" in fb:
-            direction_counts["res_ana"] += 1
-        elif "tol" in fb and "ana" in fb:
-            direction_counts["tol_ana"] += 1
-        elif "pot" in fb and "ana" in fb:
-            direction_counts["pot_ana"] += 1
-        elif "rápid" in fb or "rapida" in fb:
-            direction_counts["for_rap"] += 1
-        elif "explos" in fb:
-            direction_counts["for_exp"] += 1
-        elif "perna" in fb:
-            direction_counts["perna"] += 1
-        elif "braço" in fb or "braco" in fb:
-            direction_counts["braco"] += 1
-        elif "recup" in fb:
-            direction_counts["recup"] += 1
+        series_ids_with_feedback = set(f.series_id for f in feedbacks if f.series_id is not None)
+        
+        if series_ids_with_feedback:
+            subdivisions = db.query(models.TrainingSubdivision).filter(
+                models.TrainingSubdivision.series_id.in_(series_ids_with_feedback),
+                models.TrainingSubdivision.functional_base.isnot(None),
+                models.TrainingSubdivision.functional_base != ""
+            ).all()
+        else:
+            # Fallback: all subdivisions from sessions where athlete was present
+            session_ids = set(f.session_id for f in feedbacks)
+            subdivisions = db.query(models.TrainingSubdivision).join(
+                models.TrainingSeries
+            ).join(
+                models.TrainingSession
+            ).filter(
+                models.TrainingSession.id.in_(session_ids),
+                models.TrainingSubdivision.functional_base.isnot(None),
+                models.TrainingSubdivision.functional_base != ""
+            ).all()
+    else:
+        # All athletes: all subdivisions from completed sessions in date range
+        subdivisions = db.query(models.TrainingSubdivision).join(
+            models.TrainingSeries
+        ).join(
+            models.TrainingSession
+        ).filter(
+            models.TrainingSession.date >= start_date,
+            models.TrainingSession.date <= end_date,
+            models.TrainingSession.status == "Completed",
+            models.TrainingSubdivision.functional_base.isnot(None),
+            models.TrainingSubdivision.functional_base != ""
+        ).all()
+    
+    # Count occurrences for each functional base
+    for subdiv in subdivisions:
+        fb = (subdiv.functional_base or "").strip()
+        if not fb:
+            continue
+        
+        # Normalize the functional base name for matching
+        fb_normalized = fb.lower().replace("á", "a").replace("é", "e").replace("ó", "o").replace(" ", "_")
+        
+        # Try to find a matching configured direction
+        matched = False
+        for normalized_key, original_name in direction_name_map.items():
+            if fb_normalized == normalized_key:
+                direction_counts[original_name] += 1
+                matched = True
+                break
+        
+        # If no exact match, try pattern matching against configured directions
+        if not matched:
+            fb_lower = fb.lower()
+            for normalized_key, original_name in direction_name_map.items():
+                # Check if the subdivision's functional_base contains the direction name
+                if normalized_key in fb_normalized or fb_normalized in normalized_key:
+                    direction_counts[original_name] += 1
+                    break
     
     return direction_counts
 
@@ -315,7 +548,7 @@ def get_meso_dashboard(
     gym = get_gym_data(db, meso.start_date, meso.end_date, detailed=True)
     athletes = get_athletes_data(db, meso.start_date, meso.end_date)
     wellness = get_wellness_data(db, meso.start_date, meso.end_date)
-    functional_direction = get_functional_direction_data(db, meso.start_date, meso.end_date)
+    functional_direction = get_functional_direction_data(db, meso.start_date, meso.end_date, None)
     
     return {
         "swimming": swimming,
@@ -343,10 +576,10 @@ def get_micro_dashboard(
         raise HTTPException(status_code=404, detail="Micro cycle not found")
     
     swimming = get_swimming_data(db, micro.start_date, micro.end_date, athlete_id)
-    gym = get_gym_data(db, micro.start_date, micro.end_date, athlete_id)
+    gym = get_gym_data(db, micro.start_date, micro.end_date, athlete_id, detailed=True)
     athletes = get_athletes_data(db, micro.start_date, micro.end_date, athlete_id)
     wellness = get_wellness_data(db, micro.start_date, micro.end_date, athlete_id)
-    functional_direction = get_functional_direction_data(db, micro.start_date, micro.end_date)
+    functional_direction = get_functional_direction_data(db, micro.start_date, micro.end_date, athlete_id)
     
     # Calculate relative load (load / body weight)
     relative_load = None

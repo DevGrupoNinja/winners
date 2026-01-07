@@ -110,6 +110,7 @@ export interface Workout {
 export interface BackendSessionFeedback {
   id: number;
   session_id: number;
+  series_id: number | null;  // NEW: feedback per series
   athlete_id: number;
   rpe_real: number | null;
   exhaustion_level: string | null;

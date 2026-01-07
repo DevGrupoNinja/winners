@@ -96,6 +96,7 @@ class TrainingSession(TrainingSessionBase):
 # --- Live Feedback ---
 class SessionFeedbackCreate(BaseModel):
     session_id: int
+    series_id: int | None = None  # NEW: feedback per series
     athlete_id: int
     rpe_real: float | None = None
     exhaustion_level: str | None = None
@@ -106,3 +107,4 @@ class SessionFeedback(SessionFeedbackCreate):
     id: int
     class Config:
         from_attributes = True
+
