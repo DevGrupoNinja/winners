@@ -39,7 +39,7 @@ FunctionalDirection = Dict[str, int]
 
 class MacroDashboardResponse(BaseModel):
     swimming: SwimmingDashboard
-    gym: GymDashboard
+    gym: GymDetailedDashboard
     athletes: AthletesDashboard
     wellness: WellnessDashboard
     results: dict = {}
@@ -50,6 +50,8 @@ class MesoDashboardResponse(BaseModel):
     athletes: AthletesDashboard
     wellness: WellnessDashboard
     functional_direction: FunctionalDirection
+    target_er: Optional[float] = None  # Average ER from subdivisions
+    target_re: Optional[float] = None  # Average RE from subdivisions
 
 class MicroDashboardResponse(BaseModel):
     swimming: SwimmingDashboard

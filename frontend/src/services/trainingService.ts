@@ -192,6 +192,20 @@ export const trainingService = {
         return response.data;
     },
 
+    createFunctionalDirectionRange: async (data: { re_min: number; re_max: number; er_min: number; er_max: number; direction: string }) => {
+        const response = await api.post<any>('/training/functional-direction-ranges', data);
+        return response.data;
+    },
+
+    updateFunctionalDirectionRange: async (id: number, data: { re_min: number; re_max: number; er_min: number; er_max: number; direction: string }) => {
+        const response = await api.put<any>(`/training/functional-direction-ranges/${id}`, data);
+        return response.data;
+    },
+
+    deleteFunctionalDirectionRange: async (id: number) => {
+        await api.delete(`/training/functional-direction-ranges/${id}`);
+    },
+
     createFeedback: async (sessionId: string, data: any) => {
         const response = await api.post<any>(`/training/${sessionId}/feedback`, data);
         return response.data;

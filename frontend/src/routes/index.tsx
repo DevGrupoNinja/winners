@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import HomePage from '@/pages/HomePage';
 import TrainingPage from '@/pages/TrainingPage';
+import TrainingSettingsPage from '@/pages/TrainingSettingsPage';
 import CyclesPage from '@/pages/CyclesPage';
 import GymPage from '@/pages/GymPage';
 import CompetitionPage from '@/pages/CompetitionPage';
@@ -26,6 +27,10 @@ export const router = createBrowserRouter([
             {
                 path: 'training',
                 element: <TrainingPage />,
+            },
+            {
+                path: 'training/settings',
+                element: <TrainingSettingsPage />,
             },
             {
                 path: 'cycles',

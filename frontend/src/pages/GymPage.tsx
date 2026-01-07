@@ -692,7 +692,6 @@ export default function GymPage() {
               <FilterChip key={c} label={c} active={libraryCategory === c} onClick={() => setLibraryCategory(c)} />
             ))}
           </div>
-          <button onClick={openCreateTemplateModal} className="bg-brand-orange text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Plus size={16} /> Novo Modelo</button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map(template => (
@@ -1474,10 +1473,17 @@ export default function GymPage() {
                 </button>
               </div>
             </div>
-            <button onClick={openCreateWorkoutModal} className="bg-brand-orange text-white px-5 py-3 rounded-2xl text-xs flex items-center gap-2 font-black tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 active:scale-95">
-              <Plus size={18} />
-              Programar Treino
-            </button>
+            {activeTab !== 'LIBRARY' ? (
+              <button onClick={openCreateWorkoutModal} className="bg-brand-orange text-white px-5 py-3 rounded-2xl text-xs flex items-center gap-2 font-black tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 active:scale-95">
+                <Plus size={18} />
+                Programar Treino
+              </button>
+            ) : (
+              <button onClick={openCreateTemplateModal} className="bg-brand-orange text-white px-5 py-3 rounded-2xl text-xs flex items-center gap-2 font-black tracking-widest hover:bg-orange-600 transition-all shadow-xl shadow-orange-500/20 active:scale-95">
+                <Plus size={18} />
+                Novo Modelo
+              </button>
+            )}
           </header>
           <div className="flex-1 overflow-y-auto">{activeTab === 'AGENDA' && renderAgendaList()}{activeTab === 'HISTORY' && renderHistory()}{activeTab === 'LIBRARY' && renderLibrary()}</div>
         </>

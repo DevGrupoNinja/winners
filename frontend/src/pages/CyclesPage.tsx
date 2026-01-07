@@ -444,11 +444,11 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                                 <div className="grid grid-cols-2 gap-3 md:gap-4">
                                     <div className="p-3 md:p-4 bg-white rounded-xl border border-slate-100 text-center">
                                         <span className="block text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider">ER</span>
-                                        <span className="text-xl md:text-2xl font-black text-brand-orange">0.4</span>
+                                        <span className="text-xl md:text-2xl font-black text-brand-orange">{dashboardData?.target_er?.toFixed(2) ?? 'N/A'}</span>
                                     </div>
                                     <div className="p-3 md:p-4 bg-white rounded-xl border border-slate-100 text-center">
                                         <span className="block text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-wider">RE</span>
-                                        <span className="text-xl md:text-2xl font-black text-brand-orange">0.4</span>
+                                        <span className="text-xl md:text-2xl font-black text-brand-orange">{dashboardData?.target_re?.toFixed(2) ?? 'N/A'}</span>
                                     </div>
                                 </div>
                                 <p className="text-[9px] md:text-[10px] text-slate-400 italic leading-snug pt-2 border-t border-slate-100">
@@ -498,22 +498,29 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center bg-yellow-400/10 px-3 py-1.5 rounded-lg border border-yellow-400/20">
                                     <span className="text-[10px] md:text-xs font-bold text-amber-700 uppercase">DDR Total</span>
-                                    <span className="text-[10px] md:text-xs font-black text-amber-800 whitespace-nowrap">2.487 kg (72.1%)</span>
+                                    <span className="text-[10px] md:text-xs font-black text-amber-800 whitespace-nowrap">
+                                        {((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)).toFixed(0)} kg
+                                        ({gym.total_load > 0 ? (((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
+                                    </span>
                                 </div>
                                 <div className="space-y-3 pl-2">
-                                    <ProgressBar label="Força Explosiva" value={27.02} max={100} colorClass="bg-brand-orange" subValue="672 kg (27%)" />
-                                    <ProgressBar label="Resistência Força" value={11.58} max={100} colorClass="bg-brand-orange" subValue="288 kg (11%)" />
-                                    <ProgressBar label="Força Rápida" value={34.38} max={100} colorClass="bg-brand-orange" subValue="855 kg (34%)" />
+                                    <ProgressBar key="meso-ddr-explosive" label="Força Explosiva" value={gym.ddr_explosive || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosive || 0).toFixed(0)} kg`} />
+                                    <ProgressBar key="meso-ddr-explosiva" label="Explosiva" value={gym.ddr_explosiva || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_explosiva || 0).toFixed(0)} kg`} />
+                                    <ProgressBar key="meso-ddr-fast" label="Força Rápida" value={gym.ddr_fast || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_fast || 0).toFixed(0)} kg`} />
+                                    <ProgressBar key="meso-ddr-res" label="Resistência Força" value={gym.ddr_resistance || 0} max={gym.total_load || 1} colorClass="bg-brand-orange" subValue={`${(gym.ddr_resistance || 0).toFixed(0)} kg`} />
                                 </div>
                             </div>
                             <div className="space-y-4">
                                 <div className="flex justify-between items-center bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100">
                                     <span className="text-[10px] md:text-xs font-bold text-sky-700 uppercase">DCR Total</span>
-                                    <span className="text-[10px] md:text-xs font-black text-sky-800 whitespace-nowrap">960 kg (27.8%)</span>
+                                    <span className="text-[10px] md:text-xs font-black text-sky-800 whitespace-nowrap">
+                                        {((gym.dcr_max || 0) + (gym.dcr_resistive || 0)).toFixed(0)} kg
+                                        ({gym.total_load > 0 ? (((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / gym.total_load * 100).toFixed(0) : 0}%)
+                                    </span>
                                 </div>
                                 <div className="space-y-3 pl-2">
-                                    <ProgressBar label="Força Máxima" value={70.0} max={100} colorClass="bg-blue-600" subValue="672 kg (70%)" />
-                                    <ProgressBar label="Força Resistiva" value={30.0} max={100} colorClass="bg-blue-600" subValue="288 kg (30%)" />
+                                    <ProgressBar key="meso-dcr-max" label="Força Máxima" value={gym.dcr_max || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_max || 0).toFixed(0)} kg`} />
+                                    <ProgressBar key="meso-dcr-res" label="Força Resistiva" value={gym.dcr_resistive || 0} max={gym.total_load || 1} colorClass="bg-blue-600" subValue={`${(gym.dcr_resistive || 0).toFixed(0)} kg`} />
                                 </div>
                             </div>
                         </div>
@@ -551,12 +558,8 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
 
                             <div className="space-y-4 py-4 border-y border-slate-50">
                                 <div className="flex justify-between items-center text-[10px] md:text-xs">
-                                    <span className="text-slate-500 font-medium uppercase">Presenças Médias</span>
-                                    <span className="font-black text-slate-800">5 / atleta</span>
-                                </div>
-                                <div className="flex justify-between items-center text-[10px] md:text-xs">
-                                    <span className="text-slate-500 font-medium uppercase">Média de Faltas</span>
-                                    <span className="font-black text-slate-800">2 / atleta</span>
+                                    <span className="text-slate-500 font-medium uppercase">Presença Média</span>
+                                    <span className="font-black text-slate-800">{athletes.average_attendance.toFixed(0)}%</span>
                                 </div>
                             </div>
 
@@ -647,12 +650,13 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
 
             {/* Scroll Area */}
             <div className="flex-1 min-h-0 overflow-y-auto px-6 md:px-10 pb-8 space-y-6 custom-scrollbar">
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                    {/* Card: Natação */}
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col">
+                    {/* Card: Natação - Full Width */}
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col col-span-1 lg:col-span-2">
                         <CardHeader icon={Droplets} title="Natação" subtitle="Volume & Intensidade" />
-                        <div className="flex justify-between items-end mb-8">
+                        {/* KPIs Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume Total</span>
                                 <div className="flex items-baseline gap-1">
@@ -660,44 +664,45 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                                     <span className="text-lg font-black text-slate-400 uppercase">km</span>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Treinos</span>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Treinos</span>
                                 <span className="text-3xl font-black text-brand-slate">{swimming.total_sessions}</span>
                             </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Média / Treino</span>
+                                <span className="text-3xl font-black text-brand-slate">{swimming.average_per_session.toFixed(0)}m</span>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                             <ProgressBar label="DDR" value={swimming.ddr_volume} max={swimming.total_volume || 1} colorClass="bg-emerald-500" subValue={`${swimming.ddr_volume.toFixed(1)}km`} />
                             <ProgressBar label="DCR" value={swimming.dcr_volume} max={swimming.total_volume || 1} colorClass="bg-blue-500" subValue={`${swimming.dcr_volume.toFixed(1)}km`} />
                         </div>
-                        <div className="mt-auto bg-slate-50 px-6 py-4 rounded-2xl flex justify-between items-center">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Média / Treino</span>
-                            <span className="text-base font-black text-brand-slate">{swimming.average_per_session.toFixed(0)}m</span>
-                        </div>
                     </div>
 
-                    {/* Card: Preparação Física */}
-                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col">
+                    {/* Card: Preparação Física - Full Width */}
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col col-span-1 lg:col-span-2">
                         <CardHeader icon={Dumbbell} title="Preparação Física" subtitle="Força & Potência" />
-                        <div className="flex justify-between items-end mb-8">
+                        {/* KPIs Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Tonelagem</span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carga Total</span>
                                 <div className="flex items-baseline gap-1">
                                     <span className="text-4xl font-black text-brand-slate tracking-tighter">{(gym.total_load / 1000).toFixed(1)}</span>
                                     <span className="text-lg font-black text-slate-400 uppercase">ton</span>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sessões</span>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Sessões</span>
                                 <span className="text-3xl font-black text-brand-slate">{gym.total_sessions}</span>
                             </div>
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Peso Médio</span>
+                                <span className="text-3xl font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-8">
-                            <ProgressBar label="DDR" value={45.8} max={100} colorClass="bg-emerald-500" subValue="38.9t" />
-                            <ProgressBar label="DCR" value={72.4} max={100} colorClass="bg-blue-500" subValue="61.5t" />
-                        </div>
-                        <div className="mt-auto bg-slate-50 px-6 py-4 rounded-2xl flex justify-between items-center">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Peso Médio</span>
-                            <span className="text-base font-black text-brand-slate">{gym.average_load.toFixed(0)}kg</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                            <ProgressBar label="DDR" value={(gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)} max={gym.total_load || 1} colorClass="bg-emerald-500" subValue={`${(((gym.ddr_explosive || 0) + (gym.ddr_explosiva || 0) + (gym.ddr_fast || 0) + (gym.ddr_resistance || 0)) / 1000).toFixed(1)}t`} />
+                            <ProgressBar label="DCR" value={(gym.dcr_max || 0) + (gym.dcr_resistive || 0)} max={gym.total_load || 1} colorClass="bg-blue-500" subValue={`${(((gym.dcr_max || 0) + (gym.dcr_resistive || 0)) / 1000).toFixed(1)}t`} />
                         </div>
                     </div>
 

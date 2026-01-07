@@ -23,6 +23,61 @@ def read_functional_direction_ranges(
 ) -> Any:
     return db.query(models.ConfigFunctionalDirectionRange).all()
 
+@router.post("/functional-direction-ranges", response_model=schemas.ConfigFunctionalDirectionRange)
+def create_functional_direction_range(
+    *,
+    db: Session = Depends(deps.get_db),
+    range_in: schemas.ConfigFunctionalDirectionRangeCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Create a new functional direction range."""
+    db_obj = models.ConfigFunctionalDirectionRange(**range_in.dict())
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+@router.put("/functional-direction-ranges/{id}", response_model=schemas.ConfigFunctionalDirectionRange)
+def update_functional_direction_range(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    range_in: schemas.ConfigFunctionalDirectionRangeCreate,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Update an existing functional direction range."""
+    db_obj = db.query(models.ConfigFunctionalDirectionRange).filter(
+        models.ConfigFunctionalDirectionRange.id == id
+    ).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Functional direction range not found")
+    
+    for field, value in range_in.dict().items():
+        setattr(db_obj, field, value)
+    
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+@router.delete("/functional-direction-ranges/{id}", response_model=schemas.ConfigFunctionalDirectionRange)
+def delete_functional_direction_range(
+    *,
+    db: Session = Depends(deps.get_db),
+    id: int,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Delete a functional direction range."""
+    db_obj = db.query(models.ConfigFunctionalDirectionRange).filter(
+        models.ConfigFunctionalDirectionRange.id == id
+    ).first()
+    if not db_obj:
+        raise HTTPException(status_code=404, detail="Functional direction range not found")
+    
+    db.delete(db_obj)
+    db.commit()
+    return db_obj
+
 @router.post("/", response_model=schemas.TrainingSession)
 def create_training_session(
     *,

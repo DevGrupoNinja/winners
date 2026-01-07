@@ -153,6 +153,47 @@ def get_swimming_data(db: Session, start_date: date, end_date: date, athlete_id:
     }
 
 
+def get_target_er_re(db: Session, start_date: date, end_date: date) -> dict:
+    """Calculate average ER and RE from subdivisions of completed sessions with feedback.
+    
+    Only considers sessions that are completed and have at least one athlete feedback.
+    """
+    sessions = db.query(models.TrainingSession).filter(
+        models.TrainingSession.date >= start_date,
+        models.TrainingSession.date <= end_date,
+        models.TrainingSession.status == "Completed"
+    ).all()
+    
+    er_values = []
+    re_values = []
+    
+    for session in sessions:
+        # Check if session has any feedback (athlete participated)
+        has_feedback = db.query(models.SessionFeedback).filter(
+            models.SessionFeedback.session_id == session.id,
+            models.SessionFeedback.attendance == "Present"
+        ).first()
+        
+        if not has_feedback:
+            continue
+        
+        # Get all subdivisions from this session's series
+        for series in session.series:
+            for subdiv in series.subdivisions:
+                if subdiv.da_er is not None:
+                    er_values.append(subdiv.da_er)
+                if subdiv.da_re is not None:
+                    re_values.append(subdiv.da_re)
+    
+    avg_er = sum(er_values) / len(er_values) if er_values else None
+    avg_re = sum(re_values) / len(re_values) if re_values else None
+    
+    return {
+        "target_er": round(avg_er, 2) if avg_er is not None else None,
+        "target_re": round(avg_re, 2) if avg_re is not None else None,
+    }
+
+
 def get_gym_data(db: Session, start_date: date, end_date: date, athlete_id: Optional[int] = None, detailed: bool = False) -> dict:
     """Aggregate gym training data for a date range.
     
@@ -175,14 +216,9 @@ def get_gym_data(db: Session, start_date: date, end_date: date, athlete_id: Opti
     def get_exercise_capacity(session, exercise_name):
         """Get physicalMotorCapacity for an exercise from session's exercises_snapshot."""
         exercises = session.exercises_snapshot or []
-        print(f"[DEBUG] Looking for exercise '{exercise_name}' in snapshot with {len(exercises)} exercises")
         for ex in exercises:
-            print(f"[DEBUG]   - Exercise: name='{ex.get('name')}', capacity='{ex.get('physicalMotorCapacity', '')}'")
             if ex.get("name") == exercise_name:
-                capacity = ex.get("physicalMotorCapacity", "")
-                print(f"[DEBUG]   MATCH! Returning capacity: '{capacity}'")
-                return capacity
-        print(f"[DEBUG]   NOT FOUND!")
+                return ex.get("physicalMotorCapacity", "")
         return ""
     
     def add_to_breakdown(capacity, load_sum):
@@ -517,7 +553,7 @@ def get_macro_dashboard(
         raise HTTPException(status_code=404, detail="Macro cycle not found")
     
     swimming = get_swimming_data(db, macro.start_date, macro.end_date)
-    gym = get_gym_data(db, macro.start_date, macro.end_date)
+    gym = get_gym_data(db, macro.start_date, macro.end_date, detailed=True)
     athletes = get_athletes_data(db, macro.start_date, macro.end_date)
     wellness = get_wellness_data(db, macro.start_date, macro.end_date)
     
@@ -549,6 +585,7 @@ def get_meso_dashboard(
     athletes = get_athletes_data(db, meso.start_date, meso.end_date)
     wellness = get_wellness_data(db, meso.start_date, meso.end_date)
     functional_direction = get_functional_direction_data(db, meso.start_date, meso.end_date, None)
+    target_er_re = get_target_er_re(db, meso.start_date, meso.end_date)
     
     return {
         "swimming": swimming,
@@ -556,6 +593,8 @@ def get_meso_dashboard(
         "athletes": athletes,
         "wellness": wellness,
         "functional_direction": functional_direction,
+        "target_er": target_er_re["target_er"],
+        "target_re": target_er_re["target_re"],
     }
 
 

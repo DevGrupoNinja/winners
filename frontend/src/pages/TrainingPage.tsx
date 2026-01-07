@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, Plus, Filter, Users, ChevronDown, CheckCircle2, History, Play, StopCircle, ArrowLeft, Droplets, Trash2, Edit2, AlertTriangle, X, Check, Save, Copy, User, ChevronUp, AlertCircle, List, Eye, ChevronLeft, UserPlus, ChevronRight, Search, ChartBar, Layers } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Calendar, Clock, Plus, Filter, Users, ChevronDown, CheckCircle2, History, Play, StopCircle, ArrowLeft, Droplets, Trash2, Edit2, AlertTriangle, X, Check, Save, Copy, User, ChevronUp, AlertCircle, List, Eye, ChevronLeft, UserPlus, ChevronRight, Search, ChartBar, Layers, Settings } from 'lucide-react';
 import { trainingService } from '@/services/trainingService';
 import { athleteService } from '@/services/athleteService';
 import { parseISOToLocalDate, getLocalTodayISO } from '@/lib/utils';
@@ -309,6 +310,7 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
 // --- Main Module ---
 
 export default function TrainingPage() {
+    const navigate = useNavigate();
     const [viewMode, setViewMode] = useState<ViewMode>('LIST');
     const [mainTab, setMainTab] = useState<MainTab>('PLANS');
     const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -693,7 +695,16 @@ export default function TrainingPage() {
             <div className="space-y-6 animate-in fade-in relative">
                 <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex flex-col gap-4">
-                        <h2 className="text-2xl font-black text-brand-slate tracking-tight">Treinos de natação</h2>
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-2xl font-black text-brand-slate tracking-tight">Treinos de natação</h2>
+                            <button
+                                onClick={() => navigate('/training/settings')}
+                                className="p-1.5 text-slate-300 hover:text-brand-orange hover:bg-orange-50 rounded-lg transition-colors"
+                                title="Configurações"
+                            >
+                                <Settings size={16} />
+                            </button>
+                        </div>
                         <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-100 self-start shadow-sm">
                             <button
                                 onClick={() => setMainTab('PLANS')}
