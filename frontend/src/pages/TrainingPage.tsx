@@ -139,6 +139,25 @@ const AddSeriesModal = ({ order, onSave, onClose, initialData }: { order: number
     const [ranges, setRanges] = useState<any[]>([]);
 
     React.useEffect(() => {
+        const t = parseFloat(subTempo.replace(',', '.'));
+        const p = parseFloat(subPausa.replace(',', '.'));
+
+        if (!isNaN(t) && t > 0) {
+            // DA-RE = Pausa / Tempo
+            if (!isNaN(p)) {
+                setSubDare((p / t).toFixed(1));
+            }
+
+            // DA-ER = Tempo / Pausa
+            if (!isNaN(p) && p > 0) {
+                setSubDaer((t / p).toFixed(1));
+            } else if (p === 0) {
+                setSubDaer('0.0');
+            }
+        }
+    }, [subTempo, subPausa]);
+
+    React.useEffect(() => {
         const fetchRanges = async () => {
             try {
                 const data = await trainingService.getFunctionalDirectionRanges();
