@@ -1,25 +1,9 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    User,
-    Search,
-    Plus,
-    Edit2,
-    Trash2,
-    Lock,
-    Unlock,
-    X,
-    Mail,
-    Phone,
-    IdCard,
-    Camera,
-    CheckCircle2,
-    AlertTriangle,
-    ChevronLeft,
-    Save,
-    UserCog,
-    Shield,
-    Users,
+    Plus, Search, Edit2, Trash2, User, Mail, Smartphone, Hash, Eye, AlertCircle,
+    Filter, ChevronUp, ChevronDown, Lock, Unlock, X, Phone, IdCard, Camera,
+    CheckCircle2, AlertTriangle, ChevronLeft, Save, UserCog, Shield, Users
 } from 'lucide-react';
 import { UserProfile } from '@/types';
 import { userService } from '@/services/userService';
@@ -74,6 +58,7 @@ export default function UsersPage() {
     const [viewMode, setViewMode] = useState<ViewMode>('LIST');
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('Todos');
+    const [showFilters, setShowFilters] = useState(false);
 
     // Modal for user type selection
     const [showTypeModal, setShowTypeModal] = useState(false);
@@ -258,9 +243,9 @@ export default function UsersPage() {
                     </header>
 
                     {/* Filters */}
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-6">
-                        <div className="flex-1 min-w-[240px] relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                    <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm p-4 md:p-6 flex flex-col gap-4 md:gap-6">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold" size={18} />
                             <input
                                 type="text"
                                 placeholder="Buscar por nome, e-mail ou CPF..."
@@ -269,22 +254,37 @@ export default function UsersPage() {
                                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:border-brand-orange focus:bg-white outline-none transition-all"
                             />
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-400 tracking-widest">Status:</span>
-                            <div className="flex gap-1">
-                                {['Todos', 'Ativos', 'Bloqueados'].map(st => (
-                                    <button
-                                        key={st}
-                                        onClick={() => setStatusFilter(st)}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${statusFilter === st ? 'bg-brand-orange text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                    >
-                                        {st}
-                                    </button>
-                                ))}
+
+                        <div className="flex items-center justify-between md:hidden">
+                            <div className="flex items-center gap-2">
+                                <Filter size={16} className="text-brand-orange" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros</span>
+                            </div>
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-brand-orange transition-all"
+                            >
+                                {showFilters ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                            </button>
+                        </div>
+
+                        <div className={`${showFilters ? 'flex' : 'hidden md:flex'} flex-col md:flex-row md:items-center gap-6 animate-in slide-in-from-top-2`}>
+                            <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase whitespace-nowrap">Status:</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {['Todos', 'Ativos', 'Bloqueados'].map(st => (
+                                        <button
+                                            key={st}
+                                            onClick={() => setStatusFilter(st)}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all tracking-widest whitespace-nowrap border border-transparent ${statusFilter === st ? 'bg-brand-orange text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                        >
+                                            {st}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
-
                     {/* User Grid */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-10">
                         {isLoading ? (

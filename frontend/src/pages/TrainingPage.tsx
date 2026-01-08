@@ -15,7 +15,7 @@ type MainTab = 'PLANS' | 'HISTORY';
 const FilterChip: React.FC<{ label: string, active: boolean, onClick: () => void }> = ({ label, active, onClick }) => (
     <button
         onClick={onClick}
-        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${active ? 'bg-brand-orange text-white border-brand-orange' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange'}`}
+        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all tracking-widest border border-transparent whitespace-nowrap ${active ? 'bg-brand-orange text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
     >
         {label}
     </button>
@@ -409,12 +409,14 @@ export default function TrainingPage() {
     const [startDate, setStartDate] = useState(getLocalTodayISO());
     const [endDate, setEndDate] = useState(getLocalTodayISO());
     const [dateShortcut, setDateShortcut] = useState<'yesterday' | 'today' | 'tomorrow'>('today');
+    const [showFilters, setShowFilters] = useState(false);
 
     const [historyCategory, setHistoryCategory] = useState<string>('Todos');
     const [historyProfile, setHistoryProfile] = useState<string>('Todos');
     const [historyStartDate, setHistoryStartDate] = useState(getLocalTodayISO());
     const [historyEndDate, setHistoryEndDate] = useState(getLocalTodayISO());
     const [historyDateShortcut, setHistoryDateShortcut] = useState<'yesterday' | 'today' | 'tomorrow'>('today');
+    const [showHistoryFilters, setShowHistoryFilters] = useState(false);
 
     const [showStartModal, setShowStartModal] = useState(false);
     const [startWorkoutRef, setStartWorkoutRef] = useState<Workout | null>(null);
@@ -795,45 +797,83 @@ export default function TrainingPage() {
 
                 {mainTab === 'PLANS' && (
                     <>
-                        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-6">
-                            <div className="flex flex-col md:flex-row md:items-center gap-6">
+                        <div className="bg-white p-4 md:p-6 rounded-[32px] border border-slate-200 shadow-sm flex flex-col gap-4 md:gap-6">
+                            <div className="flex items-center justify-between md:hidden">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-400 uppercase font-bold">Período:</span>
-                                    <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand-orange" />
-                                    <span className="text-gray-300">-</span>
-                                    <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand-orange" />
-                                    <div className="flex items-center gap-1 ml-2">
-                                        {[{ key: 'yesterday', label: 'Ontem' }, { key: 'today', label: 'Hoje' }, { key: 'tomorrow', label: 'Amanhã' }].map(opt => {
-                                            const getDateForShortcut = (k: string) => {
-                                                const d = new Date();
-                                                if (k === 'yesterday') d.setDate(d.getDate() - 1);
-                                                if (k === 'tomorrow') d.setDate(d.getDate() + 1);
-                                                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                            };
-                                            return (
-                                                <button
-                                                    key={opt.key}
-                                                    onClick={() => { const d = getDateForShortcut(opt.key); setStartDate(d); setEndDate(d); setDateShortcut(opt.key as any); }}
-                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${dateShortcut === opt.key ? 'bg-brand-orange text-white border-brand-orange' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange'}`}
-                                                >
-                                                    {opt.label}
-                                                </button>
-                                            );
-                                        })}
+                                    <Filter size={16} className="text-brand-orange" />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros</span>
+                                </div>
+                                <button
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-brand-orange transition-all"
+                                >
+                                    {showFilters ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
+                            </div>
+
+                            <div className={`${showFilters ? 'flex' : 'hidden md:flex'} flex-col gap-6 animate-in slide-in-from-top-2`}>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Period Filter */}
+                                    <div className="flex flex-col gap-3">
+                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest pl-1">Período:</span>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 focus-within:border-brand-orange focus-within:bg-white transition-all">
+                                                <input
+                                                    type="date"
+                                                    value={startDate}
+                                                    onChange={(e) => { setStartDate(e.target.value); setDateShortcut(undefined as any); }}
+                                                    className="bg-transparent text-xs font-bold outline-none text-slate-700"
+                                                />
+                                                <span className="text-slate-300 font-bold">-</span>
+                                                <input
+                                                    type="date"
+                                                    value={endDate}
+                                                    onChange={(e) => { setEndDate(e.target.value); setDateShortcut(undefined as any); }}
+                                                    className="bg-transparent text-xs font-bold outline-none text-slate-700"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                {[{ key: 'yesterday', label: 'Ontem' }, { key: 'today', label: 'Hoje' }, { key: 'tomorrow', label: 'Amanhã' }].map(opt => {
+                                                    const getDateForShortcut = (k: string) => {
+                                                        const d = new Date();
+                                                        if (k === 'yesterday') d.setDate(d.getDate() - 1);
+                                                        if (k === 'tomorrow') d.setDate(d.getDate() + 1);
+                                                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                                    };
+                                                    return (
+                                                        <button
+                                                            key={opt.key}
+                                                            onClick={() => { const d = getDateForShortcut(opt.key); setStartDate(d); setEndDate(d); setDateShortcut(opt.key as any); }}
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all tracking-widest border border-transparent ${dateShortcut === opt.key ? 'bg-brand-orange text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Category Filter */}
+                                    <div className="flex flex-col gap-3">
+                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest pl-1">Categoria:</span>
+                                        <div className="flex flex-wrap items-center gap-1">
+                                            {categories.map(c => (
+                                                <FilterChip key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 overflow-x-auto">
-                                    <span className="text-xs text-gray-400 uppercase font-bold whitespace-nowrap">Categoria:</span>
-                                    {categories.map(c => (
-                                        <FilterChip key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />
-                                    ))}
+
+                                {/* Profile Filter */}
+                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-6">
+                                    <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest pl-1">Perfil:</span>
+                                    <div className="flex flex-wrap items-center gap-1">
+                                        {['Todos', 'Velocidade', 'Fundo', 'Meio Fundo', 'Técnica'].map(p => (
+                                            <FilterChip key={p} label={p} active={filterProfile === p} onClick={() => setFilterProfile(p)} />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2 overflow-x-auto">
-                                <span className="text-xs text-gray-400 uppercase font-bold whitespace-nowrap">Perfil:</span>
-                                {['Todos', 'Velocidade', 'Fundo', 'Meio Fundo', 'Técnica'].map(p => (
-                                    <FilterChip key={p} label={p} active={filterProfile === p} onClick={() => setFilterProfile(p)} />
-                                ))}
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -871,45 +911,83 @@ export default function TrainingPage() {
                 {mainTab === 'HISTORY' && (
                     <div className="space-y-6 animate-in fade-in">
                         {/* History Filters */}
-                        <div className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex flex-col gap-6">
-                            <div className="flex flex-col md:flex-row md:items-center gap-6">
+                        <div className="bg-white p-4 md:p-6 rounded-[32px] border border-slate-200 shadow-sm flex flex-col gap-4 md:gap-6">
+                            <div className="flex items-center justify-between md:hidden">
                                 <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Período:</span>
-                                    <input type="date" value={historyStartDate} onChange={(e) => { setHistoryStartDate(e.target.value); setHistoryDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
-                                    <span className="text-gray-300 font-bold">-</span>
-                                    <input type="date" value={historyEndDate} onChange={(e) => { setHistoryEndDate(e.target.value); setHistoryDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
-                                    <div className="flex items-center gap-1 ml-2">
-                                        {[{ key: 'yesterday', label: 'Ontem' }, { key: 'today', label: 'Hoje' }, { key: 'tomorrow', label: 'Amanhã' }].map(opt => {
-                                            const getDateForShortcut = (k: string) => {
-                                                const d = new Date();
-                                                if (k === 'yesterday') d.setDate(d.getDate() - 1);
-                                                if (k === 'tomorrow') d.setDate(d.getDate() + 1);
-                                                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                                            };
-                                            return (
-                                                <button
-                                                    key={opt.key}
-                                                    onClick={() => { const d = getDateForShortcut(opt.key); setHistoryStartDate(d); setHistoryEndDate(d); setHistoryDateShortcut(opt.key as any); }}
-                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${historyDateShortcut === opt.key ? 'bg-brand-orange text-white border-brand-orange' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange'}`}
-                                                >
-                                                    {opt.label}
-                                                </button>
-                                            );
-                                        })}
+                                    <Filter size={16} className="text-brand-orange" />
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros</span>
+                                </div>
+                                <button
+                                    onClick={() => setShowHistoryFilters(!showHistoryFilters)}
+                                    className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-brand-orange transition-all"
+                                >
+                                    {showHistoryFilters ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                </button>
+                            </div>
+
+                            <div className={`${showHistoryFilters ? 'flex' : 'hidden md:flex'} flex-col gap-6 animate-in slide-in-from-top-2`}>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    {/* Period Filter */}
+                                    <div className="flex flex-col gap-3">
+                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest pl-1">Período:</span>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 focus-within:border-brand-orange focus-within:bg-white transition-all">
+                                                <input
+                                                    type="date"
+                                                    value={historyStartDate}
+                                                    onChange={(e) => { setHistoryStartDate(e.target.value); setHistoryDateShortcut(undefined as any); }}
+                                                    className="bg-transparent text-xs font-bold outline-none text-slate-700"
+                                                />
+                                                <span className="text-slate-300 font-bold">-</span>
+                                                <input
+                                                    type="date"
+                                                    value={historyEndDate}
+                                                    onChange={(e) => { setHistoryEndDate(e.target.value); setHistoryDateShortcut(undefined as any); }}
+                                                    className="bg-transparent text-xs font-bold outline-none text-slate-700"
+                                                />
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                {[{ key: 'yesterday', label: 'Ontem' }, { key: 'today', label: 'Hoje' }, { key: 'tomorrow', label: 'Amanhã' }].map(opt => {
+                                                    const getDateForShortcut = (k: string) => {
+                                                        const d = new Date();
+                                                        if (k === 'yesterday') d.setDate(d.getDate() - 1);
+                                                        if (k === 'tomorrow') d.setDate(d.getDate() + 1);
+                                                        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                                    };
+                                                    return (
+                                                        <button
+                                                            key={opt.key}
+                                                            onClick={() => { const d = getDateForShortcut(opt.key); setHistoryStartDate(d); setHistoryEndDate(d); setHistoryDateShortcut(opt.key as any); }}
+                                                            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all tracking-widest border border-transparent ${historyDateShortcut === opt.key ? 'bg-brand-orange text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Category Filter */}
+                                    <div className="flex flex-col gap-3">
+                                        <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest pl-1">Categoria:</span>
+                                        <div className="flex flex-wrap items-center gap-1">
+                                            {categories.map(c => (
+                                                <FilterChip key={c} label={c} active={historyCategory === c} onClick={() => setHistoryCategory(c)} />
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2 overflow-x-auto">
-                                    <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Categoria:</span>
-                                    {categories.map(c => (
-                                        <FilterChip key={c} label={c} active={historyCategory === c} onClick={() => setHistoryCategory(c)} />
-                                    ))}
+
+                                {/* Profile Filter */}
+                                <div className="flex flex-col gap-3 border-t border-slate-100 pt-6">
+                                    <span className="text-[10px] text-slate-400 uppercase font-black tracking-widest pl-1">Perfil do Treino:</span>
+                                    <div className="flex flex-wrap items-center gap-1">
+                                        {['Todos', 'Velocidade', 'Fundo', 'Meio Fundo', 'Técnica'].map(p => (
+                                            <FilterChip key={p} label={p} active={historyProfile === p} onClick={() => setHistoryProfile(p)} />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2 overflow-x-auto">
-                                <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Perfil do Treino:</span>
-                                {['Todos', 'Velocidade', 'Fundo', 'Meio Fundo', 'Técnica'].map(p => (
-                                    <FilterChip key={p} label={p} active={historyProfile === p} onClick={() => setHistoryProfile(p)} />
-                                ))}
                             </div>
                         </div>
 
@@ -1056,8 +1134,9 @@ export default function TrainingPage() {
                             )}
                         </div>
                     </div>
-                )}
-            </div>
+                )
+                }
+            </div >
         );
     };
 

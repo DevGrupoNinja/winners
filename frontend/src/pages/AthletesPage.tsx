@@ -21,6 +21,9 @@ import {
     MoreVertical,
     CheckCircle2,
     AlertTriangle,
+    Filter,
+    ChevronUp,
+    ChevronDown,
     ChevronLeft,
     Save,
     Settings
@@ -81,6 +84,8 @@ export default function AthletesPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('Todos');
     const [statusFilter, setStatusFilter] = useState('Todos');
+    const [showFilters, setShowFilters] = useState(false);
+    const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null);
 
     const loadAthletes = async () => {
         try {
@@ -280,9 +285,9 @@ export default function AthletesPage() {
                     </header>
 
                     {/* Filters */}
-                    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-6">
-                        <div className="flex-1 min-w-[240px] relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                    <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm p-4 md:p-6 flex flex-col gap-4 md:gap-6">
+                        <div className="flex-1 relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold" size={18} />
                             <input
                                 type="text"
                                 placeholder="Buscar por nome, CPF ou e-mail..."
@@ -291,36 +296,51 @@ export default function AthletesPage() {
                                 className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 focus:border-brand-orange focus:bg-white outline-none transition-all"
                             />
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-400 tracking-widest">Categoria:</span>
-                            <div className="flex gap-1">
-                                {categories.map(cat => (
-                                    <button
-                                        key={cat}
-                                        onClick={() => setCategoryFilter(cat)}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${categoryFilter === cat ? 'bg-brand-slate text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                    >
-                                        {cat}
-                                    </button>
-                                ))}
+
+                        <div className="flex items-center justify-between md:hidden">
+                            <div className="flex items-center gap-2">
+                                <Filter size={16} className="text-brand-orange" />
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Filtros</span>
                             </div>
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-brand-orange transition-all"
+                            >
+                                {showFilters ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                            </button>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-400 tracking-widest">Status:</span>
-                            <div className="flex gap-1">
-                                {['Todos', 'Ativos', 'Bloqueados'].map(st => (
-                                    <button
-                                        key={st}
-                                        onClick={() => setStatusFilter(st)}
-                                        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${statusFilter === st ? 'bg-brand-orange text-white' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
-                                    >
-                                        {st}
-                                    </button>
-                                ))}
+
+                        <div className={`${showFilters ? 'flex' : 'hidden md:flex'} flex-col md:flex-row md:items-center gap-6 animate-in slide-in-from-top-2`}>
+                            <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase whitespace-nowrap">Categoria:</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {categories.map(cat => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => setCategoryFilter(cat)}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all tracking-widest whitespace-nowrap border border-transparent ${categoryFilter === cat ? 'bg-brand-slate text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                        >
+                                            {cat}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex flex-col md:flex-row md:items-center gap-4">
+                                <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase whitespace-nowrap">Status:</span>
+                                <div className="flex flex-wrap gap-1">
+                                    {['Todos', 'Ativos', 'Bloqueados'].map(st => (
+                                        <button
+                                            key={st}
+                                            onClick={() => setStatusFilter(st)}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all tracking-widest whitespace-nowrap border border-transparent ${statusFilter === st ? 'bg-brand-orange text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                        >
+                                            {st}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
-
                     {/* Athlete Grid */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-10">
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
