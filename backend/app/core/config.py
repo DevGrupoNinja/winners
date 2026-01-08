@@ -7,13 +7,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://localhost:5173", # Vite
-        "http://localhost:8001",
-        "http://localhost:3001",
-    ]
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -24,7 +18,7 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     # Database
-    DATABASE_URL: str = "sqlite:///./winners.db"  # Default to SQLite for dev
+    DATABASE_URL: str = "sqlite:///./winners.db"
 
     # JWT
     SECRET_KEY: str = "CHANGE_THIS_IN_PROD_TO_A_REAL_SECRET_KEY"
