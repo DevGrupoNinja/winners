@@ -10,3 +10,5 @@ class User(Base):
     is_superuser = Column(Boolean(), default=False)
     role = Column(String, default="COACH") # ADMIN, COACH, ATHLETE
     avatar_url = Column(String, nullable=True)
+    cpf = Column(String, nullable=True)
+    phone = Column(String, nullable=True)

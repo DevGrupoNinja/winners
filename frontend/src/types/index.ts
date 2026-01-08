@@ -271,3 +271,15 @@ export interface AssessmentData {
     stress: number;
   };
 }
+
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  cpf?: string;
+  phone?: string;
+  role: 'COACH' | 'ADMIN' | 'ATHLETE';
+  isActive: boolean;
+  isSuperuser: boolean;
+  avatarUrl?: string;
+}

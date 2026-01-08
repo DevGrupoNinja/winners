@@ -1,10 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Lock, Mail } from 'lucide-react';
-// If standard UI components are not robust, I'll use raw Tailwind. 
-// Based on previous file list `components/ui` likely has these.
-// I'll stick to raw Tailwind for input/layout to ensure it works without checking every component prop signature.
+import { Loader2, Lock, Mail, Trophy } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -25,62 +22,67 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-white mb-2">Winners 🏆</h1>
-                    <p className="text-slate-400">High Performance Swimming</p>
+        <div className="min-h-screen bg-brand-bg flex flex-col items-center justify-center p-4">
+            {/* Logo e Título */}
+            <div className="text-center mb-10">
+                <div className="flex items-center justify-center gap-3 mb-2">
+                    <div className="w-12 h-12 bg-brand-orange rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+                        <Trophy className="w-7 h-7 text-white" />
+                    </div>
+                    <h1 className="text-4xl font-black text-brand-slate tracking-tight">Winners</h1>
                 </div>
+                <p className="text-slate-400 font-medium">High Performance Swimming</p>
+            </div>
 
-                <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-2xl">
-                    <h2 className="text-xl font-semibold text-white mb-6">Acesse sua conta</h2>
+            {/* Card de Login */}
+            <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-xl shadow-slate-200/50">
+                <h2 className="text-2xl font-bold text-brand-slate text-center mb-8">Acesse sua conta</h2>
 
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {error && (
-                            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-sm">
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300">Email</label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                                <input
-                                    type="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                    placeholder="seu@email.com"
-                                />
-                            </div>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                    {error && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm font-medium">
+                            {error}
                         </div>
+                    )}
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-slate-300">Senha</label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                                <input
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                    placeholder="••••••••"
-                                />
-                            </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-slate-500">Email</label>
+                        <div className="relative">
+                            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                            <input
+                                type="email"
+                                required
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-brand-slate font-medium placeholder:text-slate-300 focus:outline-none focus:border-brand-orange focus:ring-2 focus:ring-orange-100 transition-all"
+                                placeholder="Email"
+                            />
                         </div>
+                    </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Entrar'}
-                        </button>
-                    </form>
-                </div>
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-slate-500">Senha</label>
+                        <div className="relative">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                            <input
+                                type="password"
+                                required
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-12 pr-4 text-brand-slate font-medium placeholder:text-slate-300 focus:outline-none focus:border-brand-orange focus:ring-2 focus:ring-orange-100 transition-all"
+                                placeholder="••••••••"
+                            />
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full bg-brand-orange hover:bg-orange-600 text-white font-bold py-4 rounded-xl transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-200 active:scale-[0.98]"
+                    >
+                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Entrar'}
+                    </button>
+                </form>
             </div>
         </div>
     );

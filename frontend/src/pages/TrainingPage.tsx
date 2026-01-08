@@ -406,13 +406,15 @@ export default function TrainingPage() {
 
     const [filterCategory, setFilterCategory] = useState<string>('Todos');
     const [filterProfile, setFilterProfile] = useState<string>('Todos');
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState(getLocalTodayISO());
+    const [endDate, setEndDate] = useState(getLocalTodayISO());
+    const [dateShortcut, setDateShortcut] = useState<'yesterday' | 'today' | 'tomorrow'>('today');
 
     const [historyCategory, setHistoryCategory] = useState<string>('Todos');
     const [historyProfile, setHistoryProfile] = useState<string>('Todos');
-    const [historyStartDate, setHistoryStartDate] = useState('');
-    const [historyEndDate, setHistoryEndDate] = useState('');
+    const [historyStartDate, setHistoryStartDate] = useState(getLocalTodayISO());
+    const [historyEndDate, setHistoryEndDate] = useState(getLocalTodayISO());
+    const [historyDateShortcut, setHistoryDateShortcut] = useState<'yesterday' | 'today' | 'tomorrow'>('today');
 
     const [showStartModal, setShowStartModal] = useState(false);
     const [startWorkoutRef, setStartWorkoutRef] = useState<Workout | null>(null);
@@ -797,9 +799,28 @@ export default function TrainingPage() {
                             <div className="flex flex-col md:flex-row md:items-center gap-6">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs text-gray-400 uppercase font-bold">Período:</span>
-                                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand-orange" />
+                                    <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand-orange" />
                                     <span className="text-gray-300">-</span>
-                                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand-orange" />
+                                    <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded px-2 py-1 outline-none focus:border-brand-orange" />
+                                    <div className="flex items-center gap-1 ml-2">
+                                        {[{ key: 'yesterday', label: 'Ontem' }, { key: 'today', label: 'Hoje' }, { key: 'tomorrow', label: 'Amanhã' }].map(opt => {
+                                            const getDateForShortcut = (k: string) => {
+                                                const d = new Date();
+                                                if (k === 'yesterday') d.setDate(d.getDate() - 1);
+                                                if (k === 'tomorrow') d.setDate(d.getDate() + 1);
+                                                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                            };
+                                            return (
+                                                <button
+                                                    key={opt.key}
+                                                    onClick={() => { const d = getDateForShortcut(opt.key); setStartDate(d); setEndDate(d); setDateShortcut(opt.key as any); }}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${dateShortcut === opt.key ? 'bg-brand-orange text-white border-brand-orange' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2 overflow-x-auto">
                                     <span className="text-xs text-gray-400 uppercase font-bold whitespace-nowrap">Categoria:</span>
@@ -854,9 +875,28 @@ export default function TrainingPage() {
                             <div className="flex flex-col md:flex-row md:items-center gap-6">
                                 <div className="flex items-center gap-2">
                                     <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest">Período:</span>
-                                    <input type="date" value={historyStartDate} onChange={(e) => setHistoryStartDate(e.target.value)} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
+                                    <input type="date" value={historyStartDate} onChange={(e) => { setHistoryStartDate(e.target.value); setHistoryDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
                                     <span className="text-gray-300 font-bold">-</span>
-                                    <input type="date" value={historyEndDate} onChange={(e) => setHistoryEndDate(e.target.value)} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
+                                    <input type="date" value={historyEndDate} onChange={(e) => { setHistoryEndDate(e.target.value); setHistoryDateShortcut(undefined as any); }} className="text-xs border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-orange bg-gray-50 font-bold text-slate-600" />
+                                    <div className="flex items-center gap-1 ml-2">
+                                        {[{ key: 'yesterday', label: 'Ontem' }, { key: 'today', label: 'Hoje' }, { key: 'tomorrow', label: 'Amanhã' }].map(opt => {
+                                            const getDateForShortcut = (k: string) => {
+                                                const d = new Date();
+                                                if (k === 'yesterday') d.setDate(d.getDate() - 1);
+                                                if (k === 'tomorrow') d.setDate(d.getDate() + 1);
+                                                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                            };
+                                            return (
+                                                <button
+                                                    key={opt.key}
+                                                    onClick={() => { const d = getDateForShortcut(opt.key); setHistoryStartDate(d); setHistoryEndDate(d); setHistoryDateShortcut(opt.key as any); }}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${historyDateShortcut === opt.key ? 'bg-brand-orange text-white border-brand-orange' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-orange'}`}
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-2 overflow-x-auto">
                                     <span className="text-[10px] text-gray-400 uppercase font-black tracking-widest whitespace-nowrap">Categoria:</span>

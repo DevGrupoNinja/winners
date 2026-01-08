@@ -9,6 +9,7 @@ import CompetitionPage from '@/pages/CompetitionPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
 import AthletesPage from '@/pages/AthletesPage';
 import AthletesSettingsPage from '@/pages/AthletesSettingsPage';
+import UsersPage from '@/pages/UsersPage';
 
 import LoginPage from '@/pages/LoginPage';
 
@@ -73,6 +74,11 @@ export const router = createBrowserRouter([
                 path: 'athletes/settings',
                 element: <AthletesSettingsPage />,
             },
+            {
+                path: 'users',
+                element: <UsersPage />,
+            },
         ],
     },
 ]);
+

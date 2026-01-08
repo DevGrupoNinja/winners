@@ -14,11 +14,16 @@ import {
 
 import { useNavigate } from 'react-router-dom';
 import { homeDashboardService, HomeDashboardData } from '@/services/homeDashboardService';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [dashboardData, setDashboardData] = useState<HomeDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Get first name for greeting
+    const firstName = user?.full_name?.split(' ')[0] || 'Coach';
 
     useEffect(() => {
         const loadDashboard = async () => {
@@ -62,7 +67,7 @@ export default function HomePage() {
             <section className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 px-1">
                 <div>
                     <h1 className="text-4xl font-black text-brand-slate tracking-tighter leading-none mb-3">
-                        Bom dia, <span className="text-brand-orange">Coach</span>
+                        Bom dia, <span className="text-brand-orange">{firstName}</span>
                     </h1>
                     <p className="text-slate-500 font-medium text-sm flex items-center gap-2">
                         <Calendar size={16} className="text-slate-400" />

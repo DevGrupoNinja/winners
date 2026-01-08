@@ -9,6 +9,8 @@ class UserBase(BaseModel):
     full_name: Optional[str] = None
     role: str = "COACH"
     avatar_url: Optional[str] = None
+    cpf: Optional[str] = None
+    phone: Optional[str] = None
 
 # Properties to receive via API on creation
 class UserCreate(UserBase):

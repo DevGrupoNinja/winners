@@ -336,17 +336,17 @@ const MicroDetail = ({ micro, onEdit, onDelete }: { micro: MicroCycle, onEdit: (
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
                     <div className="flex gap-4 w-full">
                         <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
-                            <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
+                            <span className="block text-2xl font-black text-emerald-600 leading-none">0</span>
                             <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
                         </div>
                         <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100">
-                            <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
+                            <span className="block text-2xl font-black text-rose-600 leading-none">0</span>
                             <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
                         </div>
                     </div>
                     <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                         <span>Presença Total</span>
-                        <span className="text-brand-slate">{athletes.average_attendance.toFixed(0)}%</span>
+                        <span className="text-brand-slate">0%</span>
                     </div>
                 </div>
             </div>
@@ -575,11 +575,11 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                     <div className="space-y-6">
                         <div className="grid grid-cols-2 gap-3">
                             <div className="p-3 md:p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-                                <span className="block text-2xl md:text-3xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
+                                <span className="block text-2xl md:text-3xl font-black text-emerald-600 leading-none">0</span>
                                 <span className="text-[8px] md:text-[10px] font-bold text-emerald-700 uppercase tracking-wide mt-2 block">Evoluíram</span>
                             </div>
                             <div className="p-3 md:p-4 bg-rose-50 rounded-2xl border border-rose-100 text-center">
-                                <span className="block text-2xl md:text-3xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
+                                <span className="block text-2xl md:text-3xl font-black text-rose-600 leading-none">0</span>
                                 <span className="text-[8px] md:text-[10px] font-bold text-rose-700 uppercase tracking-wide mt-2 block">Pioraram</span>
                             </div>
                         </div>
@@ -587,7 +587,7 @@ const MesoDetail = ({ meso, onEdit, onDelete }: { meso: MesoCycle, onEdit: () =>
                         <div className="space-y-4 py-4 border-y border-slate-50">
                             <div className="flex justify-between items-center text-[10px] md:text-xs">
                                 <span className="text-slate-500 font-medium uppercase">Presença Média</span>
-                                <span className="font-black text-slate-800">{athletes.average_attendance.toFixed(0)}%</span>
+                                <span className="font-black text-slate-800">0%</span>
                             </div>
                         </div>
 
@@ -760,21 +760,21 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Frequência & Evolução</p>
                     <div className="flex gap-4 w-full">
                         <div className="flex-1 bg-emerald-50 rounded-2xl p-4 border border-emerald-100 text-center">
-                            <span className="block text-2xl font-black text-emerald-600 leading-none">{athletes.improved_count}</span>
+                            <span className="block text-2xl font-black text-emerald-600 leading-none">0</span>
                             <span className="text-[8px] font-black text-emerald-700 uppercase mt-2 block tracking-tight">Melhoraram</span>
                         </div>
                         <div className="flex-1 bg-rose-50 rounded-2xl p-4 border border-rose-100 text-center">
-                            <span className="block text-2xl font-black text-rose-600 leading-none">{athletes.declined_count}</span>
+                            <span className="block text-2xl font-black text-rose-600 leading-none">0</span>
                             <span className="text-[8px] font-black text-rose-700 uppercase mt-2 block tracking-tight">Pioraram</span>
                         </div>
                     </div>
                     <div className="w-full mt-6 pt-4 border-t border-slate-50 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                         <span>Presença Média</span>
-                        <span className="text-brand-slate font-bold">{athletes.average_attendance.toFixed(0)}% de presença</span>
+                        <span className="text-brand-slate font-bold">0% de presença</span>
                     </div>
                 </div>
 
-                {/* Card: Medalhas */}
+                {/* Card: Medalhas - Oculto temporariamente (funcionalidade não implementada)
                 <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-sm flex flex-col lg:col-span-2 xl:col-span-1">
                     <CardHeader icon={Award} title="Resultados" subtitle="Quadro de Medalhas" />
 
@@ -816,6 +816,7 @@ const MacroDetail = ({ macro, onEdit, onDelete }: { macro: MacroCycle, onEdit: (
                         </div>
                     </div>
                 </div>
+                */}
 
             </div>
         </div>
@@ -852,7 +853,24 @@ export default function CyclesPage() {
     const loadMacros = async () => {
         try {
             const data = await cyclesService.getAll();
-            setMacros(data);
+
+            // Find the current macro (today is within its date range)
+            const today = new Date().toISOString().split('T')[0];
+            const currentMacro = data.find((m: MacroCycle) =>
+                m.startDate && m.endDate &&
+                today >= m.startDate && today <= m.endDate
+            );
+
+            if (currentMacro) {
+                // Expand and select the current macro
+                const updatedData = data.map((m: MacroCycle) =>
+                    m.id === currentMacro.id ? { ...m, isExpanded: true } : m
+                );
+                setMacros(updatedData);
+                setSelectedMacro(currentMacro);
+            } else {
+                setMacros(data);
+            }
         } catch (error) {
             console.error("Failed to load macros:", error);
         }

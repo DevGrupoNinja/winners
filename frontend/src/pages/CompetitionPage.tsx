@@ -650,6 +650,23 @@ export default function CompetitionPage() {
 
   return (
     <div className="h-full flex flex-col space-y-6 bg-brand-bg relative overflow-hidden">
+      {/* Overlay: Em desenvolvimento */}
+      <div className="absolute inset-0 z-[500] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center">
+        <div className="text-center space-y-6 max-w-md px-6">
+          <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mx-auto border-2 border-orange-100 shadow-lg shadow-orange-100/50">
+            <Trophy size={48} className="text-brand-orange" />
+          </div>
+          <div>
+            <span className="px-4 py-1.5 bg-orange-50 text-brand-orange text-[10px] font-black uppercase tracking-widest rounded-full border border-orange-100">Em desenvolvimento</span>
+          </div>
+          <h2 className="text-3xl font-black text-brand-slate tracking-tight">Central de Competições</h2>
+          <p className="text-slate-400 font-medium leading-relaxed">
+            Esta funcionalidade está sendo desenvolvida e em breve estará disponível para gestão completa de provas e resultados oficiais.
+          </p>
+        </div>
+      </div>
+
+      {/* Conteúdo ocultado temporariamente */}
       {viewMode === 'LIST' && (
         <>
           <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center px-1 gap-6 flex-shrink-0">
